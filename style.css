@@ -564,6 +564,33 @@ details[open] .chevron { transform: rotate(180deg); }
   box-shadow: 0 0 0 1px var(--border), 0 8px 32px rgba(0,0,0,0.6);
 }
 
+/* ─── Toasts ─────────────────────────────────────── */
+#toast-container {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 999;
+  pointer-events: none;
+}
+.toast {
+  padding: 6px 12px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 10px;
+  animation: toastIn 0.2s ease;
+}
+.toast.success { border-color: #00aa44; color: #00aa44; }
+.toast.error   { border-color: var(--danger); color: var(--danger); }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ─── Responsive: mobile panel bottom ──────────────── */
 @media (max-width: 900px) {
   #app-layout {

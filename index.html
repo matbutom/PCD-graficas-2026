@@ -8,11 +8,10 @@
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;700&family=Bebas+Neue&family=Archivo+Black&family=Oswald:wght@300;400;700&family=Roboto+Mono:wght@300;400;700&family=IBM+Plex+Mono:wght@400;700&family=Fira+Code:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 
-  <!-- p5.js + gif.js -->
+  <!-- p5.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
 
   <link rel="stylesheet" href="style.css">
 </head>
@@ -33,9 +32,8 @@
       <button id="btn-guides" class="btn-tool">Guides</button>
     </div>
     <div class="tb-right">
-      <button id="btn-export-png"  class="btn-tool btn-export">PNG</button>
-      <button id="btn-export-gif"  class="btn-tool btn-export">GIF</button>
-      <button id="btn-export-webm" class="btn-tool btn-export">WebM</button>
+      <button id="btn-export-png" class="btn-tool btn-export">PNG</button>
+      <button id="btn-export-mp4" class="btn-tool btn-export">MP4 10s</button>
     </div>
   </header>
 
@@ -88,7 +86,7 @@
             </div>
 
             <div class="sub-group">
-              <div class="sub-label">Posición de bloques</div>
+              <div class="sub-label">Módulos de texto</div>
               <div style="display:flex;gap:6px">
                 <button id="btn-randomize-layout" class="btn-action" style="flex:1">Randomize</button>
                 <button id="btn-reset-layout"     class="btn-action" style="flex:1">Reset</button>
@@ -98,117 +96,52 @@
           </div>
         </details>
 
-        <!-- ——— 2. TIPOGRAFÍA ——— -->
+        <!-- ——— 2. PALETA DE COLOR ——— -->
         <details class="section" open>
           <summary class="section-header">
-            <span>Tipografía</span>
+            <span>Paleta</span>
             <svg class="chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
           </summary>
           <div class="section-body">
-
-            <!-- Título -->
             <div class="sub-group">
-              <div class="sub-label">Título</div>
-              <div class="ctrl-row">
-                <label>Fuente</label>
-                <select id="font-title" class="select-input">
-                  <option value="Space Mono" selected>Space Mono</option>
-                  <option value="JetBrains Mono">JetBrains Mono</option>
-                  <option value="Fira Code">Fira Code</option>
-                  <option value="Roboto Mono">Roboto Mono</option>
-                  <option value="IBM Plex Mono">IBM Plex Mono</option>
-                  <option value="Bebas Neue">Bebas Neue</option>
-                  <option value="Archivo Black">Archivo Black</option>
-                  <option value="Oswald">Oswald</option>
-                </select>
-              </div>
-              <div class="ctrl-row">
-                <label>Tamaño <span class="val" id="title-size-val">72</span>px</label>
-                <input type="range" id="title-size" min="40" max="180" value="72" class="slider">
-              </div>
-              <div class="ctrl-row">
-                <label>Peso</label>
-                <select id="title-weight" class="select-input">
-                  <option value="regular">Regular</option>
-                  <option value="bold" selected>Bold</option>
-                  <option value="black">Black</option>
-                </select>
-              </div>
-              <div class="ctrl-row">
-                <label>Letter spacing <span class="val" id="title-ls-val">0</span>px</label>
-                <input type="range" id="title-ls" min="-5" max="20" value="0" class="slider">
-              </div>
-              <div class="ctrl-row">
-                <label>Line height <span class="val" id="title-lh-val">1.10</span></label>
-                <input type="range" id="title-lh" min="80" max="160" value="110" class="slider">
-              </div>
-              <div class="ctrl-row">
-                <label>Alineación</label>
-                <div class="btn-group">
-                  <button class="btn-align-title active" data-align="left">Izq</button>
-                  <button class="btn-align-title" data-align="center">Centro</button>
-                  <button class="btn-align-title" data-align="right">Der</button>
-                </div>
+              <div class="swatches-grid" id="color-swatches">
+                <!-- Filled by JS -->
               </div>
             </div>
-
-            <!-- Bloque Info -->
             <div class="sub-group">
-              <div class="sub-label">Bloque Info</div>
               <div class="ctrl-row">
-                <label>Fuente</label>
-                <select id="info-font" class="select-input">
-                  <option value="Space Mono" selected>Space Mono</option>
-                  <option value="JetBrains Mono">JetBrains Mono</option>
-                  <option value="Fira Code">Fira Code</option>
-                  <option value="Roboto Mono">Roboto Mono</option>
-                  <option value="IBM Plex Mono">IBM Plex Mono</option>
-                  <option value="Bebas Neue">Bebas Neue</option>
-                  <option value="Archivo Black">Archivo Black</option>
-                  <option value="Oswald">Oswald</option>
-                </select>
+                <label>Texto animación</label>
+                <input type="color" id="fg-color" value="#000000" class="color-input">
               </div>
               <div class="ctrl-row">
-                <label>Tamaño <span class="val" id="info-size-val">16</span>px</label>
-                <input type="range" id="info-size" min="10" max="36" value="16" class="slider">
+                <label>Color animación</label>
+                <input type="color" id="bubble-bg-color" value="#FF2200" class="color-input">
               </div>
               <div class="ctrl-row">
-                <label>Peso</label>
-                <select id="info-weight" class="select-input">
-                  <option value="regular" selected>Regular</option>
-                  <option value="bold">Bold</option>
-                  <option value="black">Black</option>
-                </select>
-              </div>
-              <div class="ctrl-row">
-                <label>Letter spacing <span class="val" id="info-ls-val">0</span>px</label>
-                <input type="range" id="info-ls" min="-5" max="20" value="0" class="slider">
-              </div>
-              <div class="ctrl-row">
-                <label>Line height <span class="val" id="info-lh-val">1.55</span></label>
-                <input type="range" id="info-lh" min="80" max="200" value="155" class="slider">
-              </div>
-              <div class="ctrl-row">
-                <label>Alineación</label>
-                <div class="btn-group">
-                  <button class="btn-align-info active" data-align="left">Izq</button>
-                  <button class="btn-align-info" data-align="center">Centro</button>
-                  <button class="btn-align-info" data-align="right">Der</button>
-                </div>
+                <label>Color de fondo</label>
+                <input type="color" id="bg-color" value="#ffffff" class="color-input">
               </div>
             </div>
-
+            <div class="sub-group">
+              <div class="ctrl-row">
+                <label>Opacidad anim <span class="val" id="anim-opacity-val">80</span>%</label>
+                <input type="range" id="anim-opacity" min="10" max="100" value="80" class="slider">
+              </div>
+              <div class="ctrl-row">
+                <label>Opacidad grilla <span class="val" id="grid-opacity-val">35</span>%</label>
+                <input type="range" id="grid-opacity" min="5" max="80" value="35" class="slider">
+              </div>
+            </div>
           </div>
         </details>
 
         <!-- ——— 3. ANIMACIÓN ——— -->
-        <details class="section">
+        <details class="section" open>
           <summary class="section-header">
-            <span>Animación de Fondo</span>
+            <span>Animación</span>
             <svg class="chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
           </summary>
           <div class="section-body">
-
             <div class="sub-group">
               <select id="anim-select" class="select-input select-full">
                 <option value="letter-physics">Letter Physics</option>
@@ -223,20 +156,8 @@
                 <option value="rotating-typography">Rotating Typography</option>
               </select>
               <div class="ctrl-row" style="margin-top:8px">
-                <label>Velocidad <span class="val" id="anim-speed-val">1.0</span>x</label>
-                <input type="range" id="anim-speed" min="1" max="30" value="10" class="slider">
-              </div>
-              <div class="ctrl-row">
-                <label>FPS</label>
-                <select id="anim-fps" class="select-input">
-                  <option value="24">24</option>
-                  <option value="30" selected>30</option>
-                  <option value="60">60</option>
-                </select>
-              </div>
-              <div class="ctrl-row">
-                <label>Canvas completo</label>
-                <label class="toggle"><input type="checkbox" id="anim-full-canvas" checked><span class="track"></span></label>
+                <label>Velocidad <span class="val" id="anim-speed-val">2.0</span>x</label>
+                <input type="range" id="anim-speed" min="2" max="80" value="20" class="slider">
               </div>
               <div class="ctrl-row">
                 <label>Semilla</label>
@@ -246,224 +167,6 @@
                 </div>
               </div>
             </div>
-
-            <!-- PARAMS POR ANIMACIÓN -->
-            <div id="anim-specific">
-
-              <!-- letter-physics -->
-              <div class="anim-params" id="params-letter-physics">
-                <div class="params-title">Letter Physics</div>
-                <input type="text" id="lp-text" class="text-input" value="PROCESSING COMMUNITY DAY">
-                <div class="ctrl-row">
-                  <label>Tamaño círculo <span class="val" id="lp-cs-val">38</span>px</label>
-                  <input type="range" id="lp-circle-size" min="20" max="80" value="38" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Gravedad <span class="val" id="lp-g-val">0.4</span></label>
-                  <input type="range" id="lp-gravity" min="0" max="20" value="4" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Fricción <span class="val" id="lp-fr-val">0.985</span></label>
-                  <input type="range" id="lp-friction" min="980" max="999" value="985" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Repulsión mouse <span class="val" id="lp-rep-val">180</span>px</label>
-                  <input type="range" id="lp-repulsion" min="0" max="500" value="180" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Labels coords</label>
-                  <label class="toggle"><input type="checkbox" id="lp-labels"><span class="track"></span></label>
-                </div>
-              </div>
-
-              <!-- particle-network -->
-              <div class="anim-params hidden" id="params-particle-network">
-                <div class="params-title">Particle Network</div>
-                <div class="ctrl-row">
-                  <label>Cantidad <span class="val" id="pn-count-val">80</span></label>
-                  <input type="range" id="pn-count" min="20" max="300" value="80" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Dist. conexión <span class="val" id="pn-dist-val">150</span>px</label>
-                  <input type="range" id="pn-distance" min="50" max="250" value="150" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Velocidad <span class="val" id="pn-spd-val">1.2</span></label>
-                  <input type="range" id="pn-speed" min="1" max="50" value="12" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Tamaño punto <span class="val" id="pn-sz-val">3</span>px</label>
-                  <input type="range" id="pn-size" min="1" max="10" value="3" class="slider">
-                </div>
-              </div>
-
-              <!-- flow-field -->
-              <div class="anim-params hidden" id="params-flow-field">
-                <div class="params-title">Flow Field</div>
-                <div class="ctrl-row">
-                  <label>Escala noise <span class="val" id="ff-noise-val">0.003</span></label>
-                  <input type="range" id="ff-noise" min="1" max="20" value="3" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Long. rastro <span class="val" id="ff-trail-val">120</span></label>
-                  <input type="range" id="ff-trail" min="10" max="200" value="120" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Velocidad <span class="val" id="ff-spd-val">2.0</span></label>
-                  <input type="range" id="ff-speed" min="5" max="50" value="20" class="slider">
-                </div>
-              </div>
-
-              <!-- grid-distortion -->
-              <div class="anim-params hidden" id="params-grid-distortion">
-                <div class="params-title">Grid Distortion</div>
-                <div class="ctrl-row">
-                  <label>Densidad <span class="val" id="gd-dens-val">28</span></label>
-                  <input type="range" id="gd-density" min="10" max="60" value="28" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Radio mouse <span class="val" id="gd-rad-val">160</span>px</label>
-                  <input type="range" id="gd-radius" min="50" max="300" value="160" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Fuerza <span class="val" id="gd-frc-val">120</span></label>
-                  <input type="range" id="gd-force" min="0" max="200" value="120" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Mostrar líneas</label>
-                  <label class="toggle"><input type="checkbox" id="gd-lines" checked><span class="track"></span></label>
-                </div>
-              </div>
-
-              <!-- bouncing-shapes -->
-              <div class="anim-params hidden" id="params-bouncing-shapes">
-                <div class="params-title">Bouncing Shapes</div>
-                <div class="ctrl-row">
-                  <label>Cantidad <span class="val" id="bs-cnt-val">16</span></label>
-                  <input type="range" id="bs-count" min="5" max="50" value="16" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Tamaño <span class="val" id="bs-sz-val">28</span>px</label>
-                  <input type="range" id="bs-size" min="10" max="60" value="28" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Gravedad <span class="val" id="bs-g-val">0.5</span></label>
-                  <input type="range" id="bs-gravity" min="0" max="20" value="5" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Elasticidad <span class="val" id="bs-el-val">0.82</span></label>
-                  <input type="range" id="bs-elasticity" min="10" max="100" value="82" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Formas</label>
-                  <div class="check-group">
-                    <label><input type="checkbox" id="bs-circle" checked> Círculo</label>
-                    <label><input type="checkbox" id="bs-square" checked> Cuadrado</label>
-                    <label><input type="checkbox" id="bs-triangle"> Triángulo</label>
-                  </div>
-                </div>
-              </div>
-
-              <!-- wave-interference -->
-              <div class="anim-params hidden" id="params-wave-interference">
-                <div class="params-title">Wave Interference</div>
-                <div class="ctrl-row">
-                  <label>Emisores <span class="val" id="wi-em-val">2</span></label>
-                  <input type="range" id="wi-emitters" min="1" max="5" value="2" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Frecuencia <span class="val" id="wi-freq-val">0.035</span></label>
-                  <input type="range" id="wi-frequency" min="5" max="100" value="35" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Amplitud <span class="val" id="wi-amp-val">45</span></label>
-                  <input type="range" id="wi-amplitude" min="5" max="100" value="45" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Resolución <span class="val" id="wi-res-val">4</span>px</label>
-                  <input type="range" id="wi-resolution" min="1" max="8" value="4" class="slider">
-                </div>
-              </div>
-
-              <!-- code-rain -->
-              <div class="anim-params hidden" id="params-code-rain">
-                <div class="params-title">Code Rain</div>
-                <div class="ctrl-row">
-                  <label>Velocidad <span class="val" id="cr-spd-val">3.5</span>px</label>
-                  <input type="range" id="cr-speed" min="2" max="20" value="7" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Charset</label>
-                  <select id="cr-charset" class="select-input">
-                    <option value="p5js" selected>p5.js keywords</option>
-                    <option value="latin">Latin</option>
-                    <option value="katakana">Katakana</option>
-                    <option value="numbers">Números</option>
-                  </select>
-                </div>
-              </div>
-
-              <!-- constellation -->
-              <div class="anim-params hidden" id="params-constellation">
-                <div class="params-title">Constellation</div>
-                <div class="ctrl-row">
-                  <label>Puntos <span class="val" id="co-cnt-val">80</span></label>
-                  <input type="range" id="co-count" min="20" max="200" value="80" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Dist. conexión <span class="val" id="co-dist-val">160</span>px</label>
-                  <input type="range" id="co-distance" min="50" max="200" value="160" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Velocidad <span class="val" id="co-spd-val">0.6</span></label>
-                  <input type="range" id="co-speed" min="1" max="20" value="6" class="slider">
-                </div>
-              </div>
-
-              <!-- elastic-mesh -->
-              <div class="anim-params hidden" id="params-elastic-mesh">
-                <div class="params-title">Elastic Mesh</div>
-                <div class="ctrl-row">
-                  <label>Cols <span class="val" id="em-rx-val">12</span></label>
-                  <input type="range" id="em-resx" min="4" max="20" value="12" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Filas <span class="val" id="em-ry-val">15</span></label>
-                  <input type="range" id="em-resy" min="4" max="24" value="15" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Rigidez <span class="val" id="em-st-val">0.06</span></label>
-                  <input type="range" id="em-stiff" min="1" max="50" value="6" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Amortiguación <span class="val" id="em-dm-val">0.92</span></label>
-                  <input type="range" id="em-damp" min="80" max="99" value="92" class="slider">
-                </div>
-              </div>
-
-              <!-- rotating-typography -->
-              <div class="anim-params hidden" id="params-rotating-typography">
-                <div class="params-title">Rotating Typography</div>
-                <input type="text" id="rt-text" class="text-input" value="PROCESSING COMMUNITY DAY 2026">
-                <div class="ctrl-row">
-                  <label>Velocidad <span class="val" id="rt-spd-val">1.0</span></label>
-                  <input type="range" id="rt-speed" min="1" max="50" value="10" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Tamaño letra <span class="val" id="rt-sz-val">44</span>px</label>
-                  <input type="range" id="rt-size" min="20" max="80" value="44" class="slider">
-                </div>
-                <div class="ctrl-row">
-                  <label>Distribución</label>
-                  <select id="rt-dist" class="select-input">
-                    <option value="grid" selected>Grilla</option>
-                    <option value="circular">Circular</option>
-                    <option value="random">Random</option>
-                  </select>
-                </div>
-              </div>
-
-            </div><!-- /anim-specific -->
           </div>
         </details>
 
@@ -479,60 +182,16 @@
                 <span class="label-muted">Resolución</span>
                 <span class="val-badge">1080 × 1350 px</span>
               </div>
-              <div class="ctrl-row">
-                <label>Escala</label>
-                <select id="export-scale" class="select-input">
-                  <option value="1">1× — 1080×1350</option>
-                  <option value="2">2× — 2160×2700</option>
-                </select>
-              </div>
             </div>
             <div class="sub-group">
-              <button id="btn-export-png" class="btn-action btn-primary">Exportar PNG</button>
+              <button id="btn-export-png-sidebar" class="btn-action btn-primary">PNG — frame actual</button>
             </div>
             <div class="sub-group">
-              <div class="ctrl-row">
-                <label>Duración <span class="val" id="export-dur-val">3</span>s</label>
-                <input type="range" id="export-duration" min="1" max="15" value="3" class="slider">
-              </div>
-              <div style="display:flex;gap:6px;margin-top:4px">
-                <button id="btn-export-gif"  class="btn-action" style="flex:1">GIF</button>
-                <button id="btn-export-webm" class="btn-action" style="flex:1">WebM</button>
-              </div>
+              <button id="btn-export-mp4-sidebar" class="btn-action">Video — 10 segundos</button>
               <div id="export-progress" class="export-progress hidden">
                 <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
                 <span id="progress-text">Procesando...</span>
               </div>
-            </div>
-            <div class="sub-group">
-              <button id="btn-copy-json" class="btn-action">Copiar config JSON</button>
-            </div>
-          </div>
-        </details>
-
-        <!-- ——— 5. GUARDAR / CARGAR ——— -->
-        <details class="section">
-          <summary class="section-header">
-            <span>Guardar / Cargar</span>
-            <svg class="chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-          </summary>
-          <div class="section-body">
-            <div class="sub-group">
-              <button id="btn-save-preset" class="btn-action">Guardar preset actual</button>
-              <div class="ctrl-row" style="margin-top:6px">
-                <select id="custom-presets-list" class="select-input select-full">
-                  <option value="">— Seleccionar —</option>
-                </select>
-                <button id="btn-load-preset"   class="btn-sm" title="Cargar">↓</button>
-                <button id="btn-delete-preset" class="btn-sm" title="Eliminar">×</button>
-              </div>
-            </div>
-            <div class="sub-group">
-              <div style="display:flex;gap:6px">
-                <button id="btn-export-config" class="btn-action" style="flex:1">Exportar JSON</button>
-                <button id="btn-import-config" class="btn-action" style="flex:1">Importar JSON</button>
-              </div>
-              <input type="file" id="import-file" accept=".json" class="hidden">
             </div>
           </div>
         </details>

@@ -117,20 +117,22 @@ class LetterPhysics extends BaseAnimation {
   constructor(p, state) {
     super(p, state);
     this.circles = [];
+    this.noiseZ  = 0;
     this.reset();
   }
 
   reset() {
-    const params = this.state.anim.params['letter-physics'];
+    const params  = this.state.anim.params['letter-physics'];
     const letters = params.text.replace(/\s+/g, '').toUpperCase().split('');
     const r = params.circleSize;
     const b = this.getBounds();
     this.p.randomSeed(this.state.anim.seed);
+    this.noiseZ = 0;
     this.circles = letters.map(char => ({
       x:    this.p.random(b.x + r * 2, b.x + b.w - r * 2),
       y:    this.p.random(b.y + r * 2, b.y + b.h - r * 2),
-      vx:   this.p.random(-1.5, 1.5),
-      vy:   this.p.random(-1, 1),
+      vx:   this.p.random(-3, 3),
+      vy:   this.p.random(-3, 3),
       r:    r,
       char: char
     }));
@@ -140,34 +142,45 @@ class LetterPhysics extends BaseAnimation {
     const params = this.state.anim.params['letter-physics'];
     const spd  = this.state.anim.speed;
     const b    = this.getBounds();
-    const g    = params.gravity * 0.08 * spd;
     const fric = params.friction;
     const rep  = params.repulsion;
+    const maxV = 4 * spd;
+
+    this.noiseZ += 0.006 * spd;
 
     for (const c of this.circles) {
-      // Gravedad y fricción
-      c.vy += g;
+      // Deriva orgánica con Perlin noise — reemplaza gravedad
+      const angle = this.p.noise(c.x * 0.0015, c.y * 0.0015, this.noiseZ) * this.p.TWO_PI * 2;
+      c.vx += Math.cos(angle) * 0.35 * spd;
+      c.vy += Math.sin(angle) * 0.35 * spd;
+
+      // Limitar velocidad máxima
+      const mag = Math.sqrt(c.vx * c.vx + c.vy * c.vy);
+      if (mag > maxV) { c.vx = c.vx / mag * maxV; c.vy = c.vy / mag * maxV; }
+
       c.vx *= fric;
       c.vy *= fric;
-      // Movimiento
-      c.x  += c.vx * spd;
-      c.y  += c.vy * spd;
-      // Rebotar en límites
-      if (c.x - c.r < b.x)          { c.x = b.x + c.r;          c.vx = Math.abs(c.vx) * 0.85; }
-      if (c.x + c.r > b.x + b.w)    { c.x = b.x + b.w - c.r;    c.vx = -Math.abs(c.vx) * 0.85; }
-      if (c.y - c.r < b.y)          { c.y = b.y + c.r;           c.vy = Math.abs(c.vy) * 0.85; }
-      if (c.y + c.r > b.y + b.h)    { c.y = b.y + b.h - c.r;    c.vy = -Math.abs(c.vy) * 0.85; }
+      c.x  += c.vx;
+      c.y  += c.vy;
+
+      // Rebotar en límites con restitución alta
+      if (c.x - c.r < b.x)       { c.x = b.x + c.r;       c.vx =  Math.abs(c.vx); }
+      if (c.x + c.r > b.x + b.w) { c.x = b.x + b.w - c.r; c.vx = -Math.abs(c.vx); }
+      if (c.y - c.r < b.y)       { c.y = b.y + c.r;        c.vy =  Math.abs(c.vy); }
+      if (c.y + c.r > b.y + b.h) { c.y = b.y + b.h - c.r; c.vy = -Math.abs(c.vy); }
+
       // Repulsión del mouse
       const dx = c.x - this.mx;
       const dy = c.y - this.my;
       const d  = Math.sqrt(dx * dx + dy * dy);
       if (d < rep && d > 0) {
-        const force = ((rep - d) / rep) * 4 * spd;
+        const force = ((rep - d) / rep) * 5 * spd;
         c.vx += (dx / d) * force;
         c.vy += (dy / d) * force;
       }
     }
-    // Colisiones entre círculos (O(n²), n≤30 → viable)
+
+    // Colisiones entre círculos
     for (let i = 0; i < this.circles.length; i++) {
       for (let j = i + 1; j < this.circles.length; j++) {
         resolveCircleCollision(this.circles[i], this.circles[j]);
@@ -176,31 +189,29 @@ class LetterPhysics extends BaseAnimation {
   }
 
   render() {
-    const p      = this.p;
-    const params = this.state.anim.params['letter-physics'];
-    const [r, g, b] = this.getAnimRgb();
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const [bbR, bbG, bbB] = this.getAnimRgb();   // mismo canal que todas las animaciones
+    const letterColor = this.state.preset.bubbleFg || this.state.preset.fg;
 
-    p.noFill();
     for (const c of this.circles) {
-      // Círculo
-      p.stroke(r, g, b, 220);
-      p.strokeWeight(1.5);
-      p.ellipse(c.x, c.y, c.r * 2, c.r * 2);
-      // Letra
-      p.noStroke();
-      p.fill(r, g, b, 255);
-      p.drawingContext.font = `700 ${Math.round(c.r * 0.9)}px 'Space Mono', monospace`;
-      p.drawingContext.textAlign    = 'center';
-      p.drawingContext.textBaseline = 'middle';
-      p.drawingContext.fillStyle = `rgb(${r},${g},${b})`;
-      p.drawingContext.fillText(c.char, c.x, c.y);
-      // Etiquetas de coordenadas
-      if (params.showLabels) {
-        p.drawingContext.font         = `400 9px 'Space Mono', monospace`;
-        p.drawingContext.fillStyle    = `rgba(${r},${g},${b},0.5)`;
-        p.drawingContext.textBaseline = 'top';
-        p.drawingContext.fillText(`${Math.round(c.x)},${Math.round(c.y)}`, c.x, c.y + c.r + 3);
-      }
+      ctx.save();
+      // Burbuja — color propio, independiente del fondo
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+      ctx.fillStyle   = `rgba(${bbR},${bbG},${bbB},0.85)`;
+      ctx.strokeStyle = `rgba(${bbR},${bbG},${bbB},1)`;
+      ctx.lineWidth   = 1.5;
+      ctx.fill();
+      ctx.stroke();
+
+      // Letra — controlada por "Letras burbuja"
+      ctx.fillStyle    = letterColor;
+      ctx.font         = `700 ${Math.round(c.r * 0.85)}px 'Space Mono', monospace`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(c.char, c.x, c.y);
+      ctx.restore();
     }
   }
 
@@ -323,7 +334,7 @@ class FlowField extends BaseAnimation {
     const params = this.state.anim.params['flow-field'];
     const b = this.getBounds();
     this.p.randomSeed(this.state.anim.seed);
-    this.particles = Array.from({ length: 300 }, () => ({
+    this.particles = Array.from({ length: 500 }, () => ({
       x:  this.p.random(b.x, b.x + b.w),
       y:  this.p.random(b.y, b.y + b.h),
       age: 0
@@ -517,12 +528,12 @@ class BouncingShapes extends BaseAnimation {
       return {
         x:    this.p.random(b.x + 30, b.x + b.w - 30),
         y:    this.p.random(b.y, b.y + b.h * 0.5),
-        vx:   this.p.random(-2, 2),
-        vy:   this.p.random(-1, 1),
+        vx:   this.p.random(-5, 5),
+        vy:   this.p.random(-4, 1),
         r:    params.size,
         type: type,
         rot:  this.p.random(this.p.TWO_PI),
-        rotV: this.p.random(-0.04, 0.04),
+        rotV: this.p.random(-0.12, 0.12),
         label: 'PCDSTG2026'.charAt(i % 10)
       };
     });
@@ -964,7 +975,7 @@ class RotatingTypography extends BaseAnimation {
         y:     b.y + (Math.floor(i / cols) + 0.5) * stepY,
         ch,
         rot:   this.p.random(this.p.TWO_PI),
-        rotV:  this.p.random(-0.02, 0.02) * params.speed
+        rotV:  this.p.random(-0.06, 0.06) * params.speed
       }));
     } else if (params.distribution === 'circular') {
       this.letters = chars.map((ch, i) => {
@@ -975,7 +986,7 @@ class RotatingTypography extends BaseAnimation {
           x: b.x + b.w * 0.5 + Math.cos(angle) * rx,
           y: b.y + b.h * 0.5 + Math.sin(angle) * ry,
           ch, rot: angle,
-          rotV: this.p.random(-0.02, 0.02) * params.speed
+          rotV: this.p.random(-0.06, 0.06) * params.speed
         };
       });
     } else {
@@ -984,7 +995,7 @@ class RotatingTypography extends BaseAnimation {
         y:    this.p.random(b.y + 30, b.y + b.h - 30),
         ch,
         rot:  this.p.random(this.p.TWO_PI),
-        rotV: this.p.random(-0.02, 0.02) * params.speed
+        rotV: this.p.random(-0.06, 0.06) * params.speed
       }));
     }
   }
