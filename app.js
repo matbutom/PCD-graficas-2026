@@ -228,6 +228,11 @@ const sketch = (p) => {
   p.mouseDragged  = () => dispatchMouse(p, 'drag');
   p.mousePressed  = () => dispatchMouse(p, 'press');
   p.mouseReleased = () => dispatchMouse(p, 'release');
+
+  // Touch — mapea al mismo dispatch, p5 traduce touches[0] a mouseX/mouseY
+  p.touchMoved    = () => { dispatchMouse(p, 'drag');    return false; };
+  p.touchStarted  = () => { dispatchMouse(p, 'press');   return false; };
+  p.touchEnded    = () => { dispatchMouse(p, 'release'); return false; };
 };
 
 function dispatchMouse(p, type) {
