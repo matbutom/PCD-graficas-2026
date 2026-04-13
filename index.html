@@ -24,6 +24,7 @@
     <div class="tb-left">
       <span class="app-logo">/*PCD 2026</span>
       <span id="fps-display" class="fps-badge">-- fps</span>
+      <span id="toolbar-contrast" class="toolbar-contrast pass">[AA ✓] 21.0:1</span>
     </div>
     <div class="tb-center">
       <button id="btn-play-pause" class="btn-tool active">
@@ -98,6 +99,51 @@
           </div>
         </details>
 
+        <!-- ——— 1.5. COLORES DEL AFICHE (WCAG) ——— -->
+        <details class="section" open>
+          <summary class="section-header">
+            <span>Colores del afiche</span>
+            <svg class="chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <div class="section-body">
+
+            <div class="sub-group">
+              <div class="ctrl-row">
+                <label>Color de fondo</label>
+                <input type="color" id="poster-bg" value="#ffffff" class="color-input">
+              </div>
+              <div class="ctrl-row">
+                <label>Color texto/grilla</label>
+                <input type="color" id="poster-fg" value="#000000" class="color-input">
+              </div>
+            </div>
+
+            <div class="sub-group">
+              <div class="contrast-indicator">
+                <span class="contrast-label">Contraste:</span>
+                <span id="contrast-ratio-val" class="contrast-ratio-val">21.0:1</span>
+                <span id="contrast-badge" class="contrast-badge pass">✓ AA</span>
+              </div>
+              <div id="contrast-error" class="contrast-error hidden"></div>
+            </div>
+
+            <div class="sub-group">
+              <div class="sub-label-row">
+                <span class="sub-label">Auto-ajustar contraste</span>
+                <label class="toggle"><input type="checkbox" id="auto-contrast"><span class="track"></span></label>
+              </div>
+            </div>
+
+            <div class="sub-group">
+              <div class="sub-label">Paletas accesibles</div>
+              <div class="wcag-swatches" id="wcag-swatches">
+                <!-- Filled by JS -->
+              </div>
+            </div>
+
+          </div>
+        </details>
+
         <!-- ——— 2. PALETA DE COLOR ——— -->
         <details class="section" open>
           <summary class="section-header">
@@ -160,6 +206,10 @@
               <div class="ctrl-row" style="margin-top:8px">
                 <label>Velocidad <span class="val" id="anim-speed-val">2.0</span>x</label>
                 <input type="range" id="anim-speed" min="2" max="80" value="20" class="slider">
+              </div>
+              <div class="ctrl-row">
+                <label>Tipografía <span class="val" id="anim-text-size-val">48</span>px</label>
+                <input type="range" id="anim-text-size" min="20" max="120" value="48" class="slider">
               </div>
               <div class="ctrl-row">
                 <label>Semilla</label>

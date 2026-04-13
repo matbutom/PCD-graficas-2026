@@ -19,6 +19,25 @@ const COLOR_PRESETS = [
 ];
 
 /* =====================================================
+   PALETAS WCAG AA (bg/fg con ratio >= 4.5:1)
+   Verificadas programáticamente — las que fallen se excluyen.
+   ===================================================== */
+const WCAG_PALETTES_DEF = [
+  { name: 'Clásico',         bg: '#FFFFFF', fg: '#000000' },
+  { name: 'Invertido',       bg: '#000000', fg: '#FFFFFF' },
+  { name: 'Azul Processing', bg: '#0033FF', fg: '#FFFFFF' },
+  { name: 'Azul claro',      bg: '#E8F0FF', fg: '#0033FF' },
+  { name: 'Verde terminal',  bg: '#000000', fg: '#00FF66' },
+  { name: 'Ámbar CRT',       bg: '#1A1A1A', fg: '#FFB000' },
+  { name: 'Magenta',         bg: '#FFFFFF', fg: '#C2185B' },
+  { name: 'Papel',           bg: '#F5F0E8', fg: '#1A1A1A' },
+  { name: 'Rojo alerta',     bg: '#FFE500', fg: '#000000' },
+  { name: 'Ciberpunk',       bg: '#0A0A14', fg: '#00FFEE' },
+];
+// Populated after WCAG functions are defined (see bottom of file)
+let WCAG_PALETTES = [];
+
+/* =====================================================
    CONTENIDO FIJO
    ===================================================== */
 const TITLE_LINES = ['/*PROCESSING', '/*COMMUNITY', '/*DAY — 2026'];
@@ -101,6 +120,7 @@ const state = {
     fps:        30,
     opacity:    80,
     seed:       42,
+    textSize:   48,
     fullCanvas: true,
     params: {
       'letter-physics': {
@@ -171,6 +191,10 @@ const state = {
   showGuides: false,
   playing:    true
 };
+
+// Últimos colores válidos (usados para revertir cambios que rompen WCAG AA)
+let lastValidBg = '#FFFFFF';
+let lastValidFg = '#000000';
 
 /* =====================================================
    p5.js — INSTANCIA Y SKETCH
@@ -678,6 +702,167 @@ function showToast(msg, type = 'info') {
 }
 
 /* =====================================================
+   WCAG 2.1 — CÁLCULO DE CONTRASTE
+   ===================================================== */
+function hexToRgbNorm(hex) {
+  const h = hex.replace('#', '');
+  return {
+    r: parseInt(h.substring(0, 2), 16) / 255,
+    g: parseInt(h.substring(2, 4), 16) / 255,
+    b: parseInt(h.substring(4, 6), 16) / 255
+  };
+}
+
+function relativeLuminance({ r, g, b }) {
+  const toLinear = c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+function contrastRatio(hex1, hex2) {
+  const L1 = relativeLuminance(hexToRgbNorm(hex1));
+  const L2 = relativeLuminance(hexToRgbNorm(hex2));
+  const lighter = Math.max(L1, L2);
+  const darker  = Math.min(L1, L2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function meetsAA(hex1, hex2) {
+  return contrastRatio(hex1, hex2) >= 4.5;
+}
+
+function hexToHsl(hex) {
+  let { r, g, b } = hexToRgbNorm(hex);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+  if (max === min) {
+    h = s = 0;
+  } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      default: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  return { h: h * 360, s: s * 100, l: l * 100 };
+}
+
+function hslToHex({ h, s, l }) {
+  h /= 360; s /= 100; l /= 100;
+  let r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+  }
+  const toHex = x => Math.round(Math.max(0, Math.min(255, x * 255))).toString(16).padStart(2, '0');
+  return '#' + toHex(r) + toHex(g) + toHex(b);
+}
+
+function adjustColorForContrast(targetColor, fixedColor, minRatio = 4.5) {
+  const fixedLum     = relativeLuminance(hexToRgbNorm(fixedColor));
+  const shouldBeDark = fixedLum > 0.5;
+  const hsl          = hexToHsl(targetColor);
+  const step         = shouldBeDark ? -1 : 1;
+  while (contrastRatio(hslToHex(hsl), fixedColor) < minRatio) {
+    hsl.l += step;
+    if (hsl.l <= 0 || hsl.l >= 100) break;
+  }
+  return hslToHex(hsl);
+}
+
+/* =====================================================
+   WCAG UI — indicador y paletas
+   ===================================================== */
+function updateContrastUI() {
+  const ratio    = contrastRatio(state.preset.bg, state.preset.fg);
+  const pass     = ratio >= 4.5;
+  const ratioStr = ratio.toFixed(1) + ':1';
+
+  const ratioEl = document.getElementById('contrast-ratio-val');
+  const badgeEl = document.getElementById('contrast-badge');
+  if (ratioEl) ratioEl.textContent = ratioStr;
+  if (badgeEl) {
+    badgeEl.textContent = pass ? '✓ AA' : '✗ AA';
+    badgeEl.className   = 'contrast-badge ' + (pass ? 'pass' : 'fail');
+  }
+
+  const tbEl = document.getElementById('toolbar-contrast');
+  if (tbEl) {
+    tbEl.textContent = '[AA ' + (pass ? '✓' : '✗') + '] ' + ratioStr;
+    tbEl.className   = 'toolbar-contrast ' + (pass ? 'pass' : 'fail');
+  }
+}
+
+function buildWcagSwatches() {
+  const container = document.getElementById('wcag-swatches');
+  if (!container) return;
+  container.innerHTML = '';
+  WCAG_PALETTES.forEach(palette => {
+    const btn = document.createElement('button');
+    btn.className = 'wcag-swatch';
+    btn.style.setProperty('--ws-bg', palette.bg);
+    btn.style.setProperty('--ws-fg', palette.fg);
+    btn.title     = `${palette.name} — ${contrastRatio(palette.bg, palette.fg).toFixed(1)}:1`;
+    btn.textContent = 'Aa';
+    btn.addEventListener('click', () => applyWcagPalette(palette));
+    container.appendChild(btn);
+  });
+}
+
+function applyWcagPalette(palette) {
+  state.preset.bg = palette.bg;
+  state.preset.fg = palette.fg;
+  lastValidBg     = palette.bg;
+  lastValidFg     = palette.fg;
+  const posterBg = document.getElementById('poster-bg');
+  const posterFg = document.getElementById('poster-fg');
+  const bgPicker = document.getElementById('bg-color');
+  if (posterBg) posterBg.value = palette.bg;
+  if (posterFg) posterFg.value = palette.fg;
+  if (bgPicker) bgPicker.value = palette.bg;
+  updateContrastUI();
+  if (['flow-field', 'code-rain'].includes(state.anim.current) && currentAnimation) {
+    currentAnimation.reset();
+  }
+}
+
+function flashPicker(el) {
+  el.classList.add('picker-error-flash');
+  setTimeout(() => el.classList.remove('picker-error-flash'), 400);
+}
+
+function showContrastError(ratio) {
+  const el = document.getElementById('contrast-error');
+  if (!el) return;
+  el.textContent = `Contraste insuficiente: ${ratio.toFixed(1)}:1. Mínimo requerido: 4.5:1`;
+  el.classList.remove('hidden');
+  clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(() => el.classList.add('hidden'), 3500);
+}
+
+function hideContrastError() {
+  const el = document.getElementById('contrast-error');
+  if (el) {
+    clearTimeout(el._hideTimer);
+    el.classList.add('hidden');
+  }
+}
+
+/* =====================================================
    PRESETS DE COLOR
    ===================================================== */
 function buildColorSwatches() {
@@ -715,6 +900,14 @@ function applyColorPreset(id) {
   if (fgPicker)   fgPicker.value   = preset.fg;
   if (animPicker) animPicker.value = preset.anim;
   if (bgPicker)   bgPicker.value   = preset.bg;
+  // Sync WCAG pickers
+  const posterBg = document.getElementById('poster-bg');
+  const posterFg = document.getElementById('poster-fg');
+  if (posterBg) posterBg.value = preset.bg;
+  if (posterFg) posterFg.value = preset.fg;
+  lastValidBg = preset.bg;
+  lastValidFg = preset.fg;
+  updateContrastUI();
   // Reset buffer-based animations so they repaint with new bg color
   if (['flow-field', 'code-rain'].includes(state.anim.current) && currentAnimation) {
     currentAnimation.reset();
@@ -765,14 +958,80 @@ function bindControls() {
   });
   onInput('bg-color', e => {
     state.preset.bg = e.target.value;
+    lastValidBg = e.target.value;
+    const posterBg = document.getElementById('poster-bg');
+    if (posterBg) posterBg.value = e.target.value;
+    updateContrastUI();
     if (['flow-field', 'code-rain'].includes(state.anim.current) && currentAnimation) currentAnimation.reset();
   });
   slider('anim-opacity', 'anim-opacity-val', v => { state.anim.opacity        = v; });
   slider('grid-opacity', 'grid-opacity-val', v => { state.preset.gridOpacity  = v; });
 
+  // ——— Colores del afiche (WCAG) ———
+  onInput('poster-bg', e => {
+    const newBg       = e.target.value;
+    const autoAdjust  = document.getElementById('auto-contrast')?.checked;
+    if (meetsAA(newBg, state.preset.fg)) {
+      state.preset.bg = newBg;
+      lastValidBg     = newBg;
+      const bgPicker = document.getElementById('bg-color');
+      if (bgPicker) bgPicker.value = newBg;
+      hideContrastError();
+      if (['flow-field', 'code-rain'].includes(state.anim.current) && currentAnimation) currentAnimation.reset();
+    } else if (autoAdjust) {
+      const adjustedFg = adjustColorForContrast(state.preset.fg, newBg);
+      state.preset.bg  = newBg;
+      state.preset.fg  = adjustedFg;
+      lastValidBg      = newBg;
+      lastValidFg      = adjustedFg;
+      const posterFg = document.getElementById('poster-fg');
+      const bgPicker = document.getElementById('bg-color');
+      if (posterFg) posterFg.value = adjustedFg;
+      if (bgPicker) bgPicker.value = newBg;
+      hideContrastError();
+      if (['flow-field', 'code-rain'].includes(state.anim.current) && currentAnimation) currentAnimation.reset();
+    } else {
+      e.target.value = lastValidBg;
+      flashPicker(e.target);
+      showContrastError(contrastRatio(newBg, state.preset.fg));
+    }
+    updateContrastUI();
+  });
+
+  onInput('poster-fg', e => {
+    const newFg      = e.target.value;
+    const autoAdjust = document.getElementById('auto-contrast')?.checked;
+    if (meetsAA(state.preset.bg, newFg)) {
+      state.preset.fg = newFg;
+      lastValidFg     = newFg;
+      hideContrastError();
+    } else if (autoAdjust) {
+      const adjustedBg = adjustColorForContrast(state.preset.bg, newFg);
+      state.preset.fg  = newFg;
+      state.preset.bg  = adjustedBg;
+      lastValidFg      = newFg;
+      lastValidBg      = adjustedBg;
+      const posterBg = document.getElementById('poster-bg');
+      const bgPicker = document.getElementById('bg-color');
+      if (posterBg) posterBg.value = adjustedBg;
+      if (bgPicker) bgPicker.value = adjustedBg;
+      hideContrastError();
+      if (['flow-field', 'code-rain'].includes(state.anim.current) && currentAnimation) currentAnimation.reset();
+    } else {
+      e.target.value = lastValidFg;
+      flashPicker(e.target);
+      showContrastError(contrastRatio(state.preset.bg, newFg));
+    }
+    updateContrastUI();
+  });
+
   // ——— Animación ———
   onChange('anim-select', e => { switchAnimation(e.target.value); });
   slider('anim-speed', 'anim-speed-val', v => { state.anim.speed = v; }, 0.1, 1);
+  slider('anim-text-size', 'anim-text-size-val', v => {
+    state.anim.textSize = Math.round(v);
+    if (currentAnimation) currentAnimation.reset();
+  });
   onChange('anim-seed', e => {
     state.anim.seed = parseInt(e.target.value) || 0;
     initAnimation();
@@ -904,8 +1163,13 @@ function updateProgress(ratio, msg) {
    INICIALIZACIÓN
    ===================================================== */
 document.addEventListener('DOMContentLoaded', () => {
+  // Filtrar paletas WCAG programáticamente (excluye cualquiera que no cumpla 4.5:1)
+  WCAG_PALETTES = WCAG_PALETTES_DEF.filter(p => meetsAA(p.bg, p.fg));
+
   p5Instance = new p5(sketch);
   setTimeout(resizeCanvasWrapper, 80);
   bindControls();
+  buildWcagSwatches();
+  updateContrastUI();
   window.addEventListener('resize', resizeCanvasWrapper);
 });

@@ -534,6 +534,85 @@ details[open] .chevron { transform: rotate(180deg); }
   color: var(--text-3);
 }
 
+/* ─── Toolbar contrast badge ────────────────────────── */
+.toolbar-contrast {
+  font-size: 10px;
+  font-feature-settings: "tnum";
+  padding: 1px 5px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.toolbar-contrast.pass { color: #00aa44; border-color: #00aa44; }
+.toolbar-contrast.fail { color: var(--danger); border-color: var(--danger); }
+
+/* ─── Contrast indicator (sidebar) ─────────────────── */
+.contrast-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.contrast-label {
+  color: var(--text-3);
+  font-size: 10px;
+  flex: 1;
+}
+.contrast-ratio-val {
+  font-size: 10px;
+  font-feature-settings: "tnum";
+  color: var(--text);
+}
+.contrast-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border: 1px solid transparent;
+  letter-spacing: 0.03em;
+}
+.contrast-badge.pass { color: #00aa44; border-color: #00aa44; }
+.contrast-badge.fail { color: var(--danger); border-color: var(--danger); }
+
+.contrast-error {
+  font-size: 9px;
+  color: var(--danger);
+  line-height: 1.4;
+  padding-top: 3px;
+}
+
+/* ─── WCAG swatches ──────────────────────────────────── */
+.wcag-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.wcag-swatch {
+  width: 32px;
+  height: 22px;
+  background: var(--ws-bg, #000);
+  color: var(--ws-fg, #fff);
+  border: 1px solid transparent;
+  font-family: var(--font);
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.1s, transform 0.1s;
+}
+.wcag-swatch:hover { border-color: var(--text); transform: scale(1.08); }
+
+/* ─── Color picker error flash ──────────────────────── */
+@keyframes pickerFlash {
+  0%   { outline: 2px solid var(--danger); }
+  50%  { outline: 2px solid transparent; }
+  100% { outline: 2px solid var(--danger); }
+}
+.picker-error-flash {
+  animation: pickerFlash 0.4s ease;
+}
+
 /* ─── Utility ───────────────────────────────────────── */
 .hidden { display: none !important; }
 

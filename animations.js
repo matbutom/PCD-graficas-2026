@@ -1,8 +1,6 @@
 /* =====================================================
-   ANIMATIONS.JS — Librería de animaciones p5.js
-   Processing Community Day 2026
-   Cada animación: constructor, advanceState(), render(),
-   handleMouse(cx, cy, type), reset()
+   ANIMATIONS.JS — Processing Community Day 2026
+   Todas las animaciones giran en torno a "CONVOCATORIA ABIERTA"
    ===================================================== */
 
 /* =====================================================
@@ -12,7 +10,6 @@ const CANVAS_W = 1080;
 const CANVAS_H = 1350;
 const MARGIN   = 40;
 
-// Zonas verticales del canvas (de arriba a abajo)
 const ZONES = {
   topBar:    { y: 0,    h: 40  },
   json:      { y: 40,   h: 280 },
@@ -22,52 +19,85 @@ const ZONES = {
 };
 
 /* =====================================================
+   CONSTANTES DEL MENSAJE
+   ===================================================== */
+const MESSAGE       = 'CONVOCATORIA ABIERTA';
+const MESSAGE_WORDS = ['CONVOCATORIA', 'ABIERTA'];
+const MESSAGE_CHARS = MESSAGE.replace(' ', '').split('');
+// ['C','O','N','V','O','C','A','T','O','R','I','A','A','B','I','E','R','T','A']
+
+/* =====================================================
+   UTILIDADES COMPARTIDAS
+   ===================================================== */
+
+// Retorna las posiciones target de cada char del mensaje
+// dispuesto en 2 líneas centradas dentro de bounds b
+function getMessageLayout(b, fontSize) {
+  const charW = fontSize * 0.62;
+  const lineH = fontSize * 1.35;
+  const w1    = MESSAGE_WORDS[0].length * charW;
+  const w2    = MESSAGE_WORDS[1].length * charW;
+  const cy    = b.y + b.h * 0.5;
+  const pos   = [];
+  for (let i = 0; i < MESSAGE_WORDS[0].length; i++) {
+    pos.push({
+      tx:   b.x + b.w * 0.5 - w1 * 0.5 + i * charW + charW * 0.5,
+      ty:   cy - lineH * 0.5,
+      word: 0
+    });
+  }
+  for (let i = 0; i < MESSAGE_WORDS[1].length; i++) {
+    pos.push({
+      tx:   b.x + b.w * 0.5 - w2 * 0.5 + i * charW + charW * 0.5,
+      ty:   cy + lineH * 0.5,
+      word: 1
+    });
+  }
+  return pos;
+}
+
+// Construye el string de fuente leyendo del estado global
+function getFont(state, size) {
+  const f = (state.title && state.title.font) ? state.title.font : 'Space Mono';
+  return `700 ${Math.round(size)}px '${f}', monospace`;
+}
+
+/* =====================================================
    VECTOR 2D — utilidades físicas
    ===================================================== */
 class Vec2 {
   constructor(x = 0, y = 0) { this.x = x; this.y = y; }
-  clone()         { return new Vec2(this.x, this.y); }
-  add(v)          { return new Vec2(this.x + v.x, this.y + v.y); }
-  sub(v)          { return new Vec2(this.x - v.x, this.y - v.y); }
-  scale(s)        { return new Vec2(this.x * s,   this.y * s); }
-  mag()           { return Math.sqrt(this.x * this.x + this.y * this.y); }
-  norm()          { const m = this.mag(); return m > 0 ? this.scale(1 / m) : new Vec2(); }
-  dot(v)          { return this.x * v.x + this.y * v.y; }
+  clone()           { return new Vec2(this.x, this.y); }
+  add(v)            { return new Vec2(this.x + v.x, this.y + v.y); }
+  sub(v)            { return new Vec2(this.x - v.x, this.y - v.y); }
+  scale(s)          { return new Vec2(this.x * s,   this.y * s); }
+  mag()             { return Math.sqrt(this.x * this.x + this.y * this.y); }
+  norm()            { const m = this.mag(); return m > 0 ? this.scale(1/m) : new Vec2(); }
+  dot(v)            { return this.x * v.x + this.y * v.y; }
   static dist(a, b) { return a.sub(b).mag(); }
 }
 
-// Resolución de colisión elástica entre dos círculos (igual masa)
 function resolveCircleCollision(a, b, restitution = 0.75) {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const d  = Math.sqrt(dx * dx + dy * dy);
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const d  = Math.sqrt(dx*dx + dy*dy);
   const minD = a.r + b.r;
   if (d >= minD || d === 0) return;
-
-  const nx = dx / d;
-  const ny = dy / d;
+  const nx = dx/d, ny = dy/d;
   const overlap = (minD - d) * 0.5;
-
-  // Separar centros para evitar superposición
-  a.x -= nx * overlap;
-  a.y -= ny * overlap;
-  b.x += nx * overlap;
-  b.y += ny * overlap;
-
-  // Respuesta de velocidad por impulso
-  const dvn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
-  if (dvn >= 0) return; // ya se separan
-  const j = -(1 + restitution) * dvn * 0.5;
-  a.vx -= j * nx;  a.vy -= j * ny;
-  b.vx += j * nx;  b.vy += j * ny;
+  a.x -= nx*overlap; a.y -= ny*overlap;
+  b.x += nx*overlap; b.y += ny*overlap;
+  const dvn = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
+  if (dvn >= 0) return;
+  const j = -(1+restitution)*dvn*0.5;
+  a.vx -= j*nx; a.vy -= j*ny;
+  b.vx += j*nx; b.vy += j*ny;
 }
 
-// Convierte hex a array [r, g, b]
 function hexToRgb(hex) {
   return [
-    parseInt(hex.slice(1, 3), 16),
-    parseInt(hex.slice(3, 5), 16),
-    parseInt(hex.slice(5, 7), 16)
+    parseInt(hex.slice(1,3), 16),
+    parseInt(hex.slice(3,5), 16),
+    parseInt(hex.slice(5,7), 16)
   ];
 }
 
@@ -78,22 +108,19 @@ class BaseAnimation {
   constructor(p, state) {
     this.p     = p;
     this.state = state;
-    this.mx    = CANVAS_W / 2; // posición mouse en canvas coords
+    this.mx    = CANVAS_W / 2;
     this.my    = CANVAS_H / 2;
   }
 
-  // Retorna los límites de renderizado según estado fullCanvas
   getBounds() {
-    if (this.state.anim.fullCanvas) {
-      return { x: 0, y: 0, w: CANVAS_W, h: CANVAS_H };
-    }
+    if (this.state.anim.fullCanvas) return { x: 0, y: 0, w: CANVAS_W, h: CANVAS_H };
     return { x: 0, y: ZONES.anim.y, w: CANVAS_W, h: ZONES.anim.h };
   }
 
-  // Colores del preset activo
   getFg()      { return hexToRgb(this.state.preset.fg); }
   getBg()      { return hexToRgb(this.state.preset.bg); }
   getAnimRgb() { return hexToRgb(this.state.preset.animColor); }
+  getTextSize() { return this.state.anim.textSize || 48; }
 
   draw() {
     if (this.state.playing) this.advanceState();
@@ -103,38 +130,44 @@ class BaseAnimation {
   advanceState() {}
   render()       {}
   reset()        {}
-  handleMouse(cx, cy, type) {
-    this.mx = cx;
-    this.my = cy;
-  }
+  handleMouse(cx, cy, type) { this.mx = cx; this.my = cy; }
 }
 
 /* =====================================================
-   1. LETTER PHYSICS — Letras en círculos con física
-   Referencia: LiveTrack / LTSB style
+   1. LETTER PHYSICS — Letras de CONVOCATORIA ABIERTA con física
+   TRIGGER DE LECTURA: proximidad del mouse → letras se atraen hacia su posición
+   correcta. Doble click → snap inmediato al mensaje legible.
    ===================================================== */
 class LetterPhysics extends BaseAnimation {
   constructor(p, state) {
     super(p, state);
-    this.circles = [];
-    this.noiseZ  = 0;
+    this.circles  = [];
+    this.noiseZ   = 0;
+    this.snapMode = false;
+    this.snapT    = 0;
+    this._lastClick = 0;
     this.reset();
   }
 
   reset() {
-    const params  = this.state.anim.params['letter-physics'];
-    const letters = params.text.replace(/\s+/g, '').toUpperCase().split('');
-    const r = params.circleSize;
-    const b = this.getBounds();
+    const params = this.state.anim.params['letter-physics'];
+    const r  = params.circleSize;
+    const b  = this.getBounds();
+    const sz = this.getTextSize();
     this.p.randomSeed(this.state.anim.seed);
-    this.noiseZ = 0;
-    this.circles = letters.map(char => ({
-      x:    this.p.random(b.x + r * 2, b.x + b.w - r * 2),
-      y:    this.p.random(b.y + r * 2, b.y + b.h - r * 2),
+    const layout = getMessageLayout(b, sz);
+    this.noiseZ  = 0;
+    this.snapMode = false;
+    this.circles = MESSAGE_CHARS.map((char, i) => ({
+      x:    this.p.random(b.x + r*2, b.x + b.w - r*2),
+      y:    this.p.random(b.y + r*2, b.y + b.h - r*2),
       vx:   this.p.random(-3, 3),
       vy:   this.p.random(-3, 3),
-      r:    r,
-      char: char
+      r,
+      char,
+      tx:   layout[i].tx,
+      ty:   layout[i].ty,
+      word: layout[i].word
     }));
   }
 
@@ -143,73 +176,63 @@ class LetterPhysics extends BaseAnimation {
     const spd  = this.state.anim.speed;
     const b    = this.getBounds();
     const fric = params.friction;
-    const rep  = params.repulsion;
     const maxV = 4 * spd;
-
     this.noiseZ += 0.006 * spd;
 
+    if (this.snapMode) {
+      this.snapT += 0.05 * spd;
+      if (this.snapT > 1) { this.snapMode = false; this.snapT = 1; }
+    }
+
     for (const c of this.circles) {
-      // Deriva orgánica con Perlin noise — reemplaza gravedad
-      const angle = this.p.noise(c.x * 0.0015, c.y * 0.0015, this.noiseZ) * this.p.TWO_PI * 2;
-      c.vx += Math.cos(angle) * 0.35 * spd;
-      c.vy += Math.sin(angle) * 0.35 * spd;
-
-      // Limitar velocidad máxima
-      const mag = Math.sqrt(c.vx * c.vx + c.vy * c.vy);
-      if (mag > maxV) { c.vx = c.vx / mag * maxV; c.vy = c.vy / mag * maxV; }
-
-      c.vx *= fric;
-      c.vy *= fric;
-      c.x  += c.vx;
-      c.y  += c.vy;
-
-      // Rebotar en límites con restitución alta
-      if (c.x - c.r < b.x)       { c.x = b.x + c.r;       c.vx =  Math.abs(c.vx); }
-      if (c.x + c.r > b.x + b.w) { c.x = b.x + b.w - c.r; c.vx = -Math.abs(c.vx); }
-      if (c.y - c.r < b.y)       { c.y = b.y + c.r;        c.vy =  Math.abs(c.vy); }
-      if (c.y + c.r > b.y + b.h) { c.y = b.y + b.h - c.r; c.vy = -Math.abs(c.vy); }
-
-      // Repulsión del mouse
-      const dx = c.x - this.mx;
-      const dy = c.y - this.my;
-      const d  = Math.sqrt(dx * dx + dy * dy);
-      if (d < rep && d > 0) {
-        const force = ((rep - d) / rep) * 5 * spd;
-        c.vx += (dx / d) * force;
-        c.vy += (dy / d) * force;
+      if (this.snapMode) {
+        c.x  += (c.tx - c.x) * 0.1 * spd;
+        c.y  += (c.ty - c.y) * 0.1 * spd;
+        c.vx *= 0.82;
+        c.vy *= 0.82;
+      } else {
+        const dx   = c.x - this.mx, dy = c.y - this.my;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < 240 && dist > 0) {
+          const t = 1 - dist / 240;
+          c.vx += (c.tx - c.x) * t * 0.045 * spd;
+          c.vy += (c.ty - c.y) * t * 0.045 * spd;
+        } else {
+          const angle = this.p.noise(c.x*0.0015, c.y*0.0015, this.noiseZ) * this.p.TWO_PI * 2;
+          c.vx += Math.cos(angle) * 0.35 * spd;
+          c.vy += Math.sin(angle) * 0.35 * spd;
+        }
+        const mag = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
+        if (mag > maxV) { c.vx = c.vx/mag*maxV; c.vy = c.vy/mag*maxV; }
+        c.vx *= fric; c.vy *= fric;
+        c.x  += c.vx;  c.y  += c.vy;
+        if (c.x - c.r < b.x)       { c.x = b.x + c.r;       c.vx =  Math.abs(c.vx); }
+        if (c.x + c.r > b.x + b.w) { c.x = b.x + b.w - c.r; c.vx = -Math.abs(c.vx); }
+        if (c.y - c.r < b.y)       { c.y = b.y + c.r;        c.vy =  Math.abs(c.vy); }
+        if (c.y + c.r > b.y + b.h) { c.y = b.y + b.h - c.r; c.vy = -Math.abs(c.vy); }
       }
     }
-
-    // Colisiones entre círculos
-    for (let i = 0; i < this.circles.length; i++) {
-      for (let j = i + 1; j < this.circles.length; j++) {
+    for (let i = 0; i < this.circles.length; i++)
+      for (let j = i+1; j < this.circles.length; j++)
         resolveCircleCollision(this.circles[i], this.circles[j]);
-      }
-    }
   }
 
   render() {
-    const p = this.p;
-    const ctx = p.drawingContext;
-    const [bbR, bbG, bbB] = this.getAnimRgb();   // mismo canal que todas las animaciones
-    const letterColor = this.state.preset.bubbleFg || this.state.preset.fg;
-
+    const ctx     = this.p.drawingContext;
+    const [r,g,b] = this.getAnimRgb();
     for (const c of this.circles) {
       ctx.save();
-      // Burbuja — color propio, independiente del fondo
       ctx.beginPath();
-      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
-      ctx.fillStyle   = `rgba(${bbR},${bbG},${bbB},0.85)`;
-      ctx.strokeStyle = `rgba(${bbR},${bbG},${bbB},1)`;
+      ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
+      ctx.fillStyle   = `rgba(${r},${g},${b},0.12)`;
+      ctx.strokeStyle = `rgba(${r},${g},${b},0.7)`;
       ctx.lineWidth   = 1.5;
       ctx.fill();
       ctx.stroke();
-
-      // Letra — controlada por "Letras burbuja"
-      ctx.fillStyle    = letterColor;
-      ctx.font         = `700 ${Math.round(c.r * 0.85)}px 'Space Mono', monospace`;
+      ctx.font         = getFont(this.state, Math.round(c.r * 0.88));
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
+      ctx.fillStyle    = `rgba(${r},${g},${b},1)`;
       ctx.fillText(c.char, c.x, c.y);
       ctx.restore();
     }
@@ -217,12 +240,18 @@ class LetterPhysics extends BaseAnimation {
 
   handleMouse(cx, cy, type) {
     super.handleMouse(cx, cy, type);
-    if (type === 'press') this.reset();
+    if (type === 'press') {
+      const now = Date.now();
+      if (now - this._lastClick < 350) { this.snapMode = true; this.snapT = 0; }
+      this._lastClick = now;
+    }
   }
 }
 
 /* =====================================================
-   2. PARTICLE NETWORK — Red de partículas conectadas
+   2. PARTICLE NETWORK — Red de letras del mensaje
+   TRIGGER DE LECTURA: proximidad del mouse → letras convergen a posición target.
+   Letras de la misma palabra tienen cohesión más fuerte.
    ===================================================== */
 class ParticleNetwork extends BaseAnimation {
   constructor(p, state) {
@@ -233,184 +262,198 @@ class ParticleNetwork extends BaseAnimation {
 
   reset() {
     const params = this.state.anim.params['particle-network'];
-    const b = this.getBounds();
+    const b  = this.getBounds();
+    const sz = this.getTextSize();
     this.p.randomSeed(this.state.anim.seed);
-    this.particles = Array.from({ length: params.count }, () => ({
-      x:  this.p.random(b.x, b.x + b.w),
-      y:  this.p.random(b.y, b.y + b.h),
-      vx: this.p.random(-params.speed, params.speed),
-      vy: this.p.random(-params.speed, params.speed)
+    const layout = getMessageLayout(b, sz);
+    this.particles = MESSAGE_CHARS.map((char, i) => ({
+      x:    this.p.random(b.x, b.x + b.w),
+      y:    this.p.random(b.y, b.y + b.h),
+      vx:   this.p.random(-params.speed, params.speed),
+      vy:   this.p.random(-params.speed, params.speed),
+      char,
+      tx:   layout[i].tx,
+      ty:   layout[i].ty,
+      word: layout[i].word
     }));
   }
 
   advanceState() {
-    const params = this.state.anim.params['particle-network'];
-    const spd = this.state.anim.speed;
-    const b   = this.getBounds();
+    const params  = this.state.anim.params['particle-network'];
+    const spd     = this.state.anim.speed;
+    const b       = this.getBounds();
+    const maxSpd  = params.speed * 3;
 
-    if (this.particles.length !== params.count) this.reset();
+    for (let i = 0; i < this.particles.length; i++) {
+      const pt   = this.particles[i];
+      const dx   = this.mx - pt.x, dy = this.my - pt.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
 
-    for (const pt of this.particles) {
-      pt.x += pt.vx * spd;
-      pt.y += pt.vy * spd;
-      if (pt.x < b.x)          { pt.x = b.x;          pt.vx *= -1; }
-      if (pt.x > b.x + b.w)    { pt.x = b.x + b.w;    pt.vx *= -1; }
-      if (pt.y < b.y)          { pt.y = b.y;           pt.vy *= -1; }
-      if (pt.y > b.y + b.h)    { pt.y = b.y + b.h;     pt.vy *= -1; }
+      if (dist < 260) {
+        const t = (1 - dist/260) * 0.06 * spd;
+        pt.vx += (pt.tx - pt.x) * t;
+        pt.vy += (pt.ty - pt.y) * t;
+      }
 
-      // Atracción leve hacia el mouse
-      const dx = this.mx - pt.x;
-      const dy = this.my - pt.y;
-      const d  = Math.sqrt(dx * dx + dy * dy);
-      if (d < 200 && d > 0) {
-        pt.vx += (dx / d) * 0.08 * spd;
-        pt.vy += (dy / d) * 0.08 * spd;
-        // Limitar velocidad
-        const mag = Math.sqrt(pt.vx*pt.vx + pt.vy*pt.vy);
-        if (mag > params.speed * 3) {
-          pt.vx = (pt.vx / mag) * params.speed * 3;
-          pt.vy = (pt.vy / mag) * params.speed * 3;
+      // Same-word cohesion
+      for (let j = 0; j < this.particles.length; j++) {
+        if (i === j || this.particles[j].word !== pt.word) continue;
+        const ox = this.particles[j].x - pt.x;
+        const oy = this.particles[j].y - pt.y;
+        const od = Math.sqrt(ox*ox + oy*oy);
+        if (od > 0 && od < 180) {
+          pt.vx += (ox/od) * 0.014 * spd;
+          pt.vy += (oy/od) * 0.014 * spd;
         }
       }
+
+      pt.x += pt.vx * spd; pt.y += pt.vy * spd;
+      const mag = Math.sqrt(pt.vx*pt.vx + pt.vy*pt.vy);
+      if (mag > maxSpd) { pt.vx = pt.vx/mag*maxSpd; pt.vy = pt.vy/mag*maxSpd; }
+      pt.vx *= 0.97; pt.vy *= 0.97;
+
+      if (pt.x < b.x)       { pt.x = b.x;       pt.vx *= -1; }
+      if (pt.x > b.x + b.w) { pt.x = b.x + b.w; pt.vx *= -1; }
+      if (pt.y < b.y)       { pt.y = b.y;        pt.vy *= -1; }
+      if (pt.y > b.y + b.h) { pt.y = b.y + b.h;  pt.vy *= -1; }
     }
   }
 
   render() {
     const p      = this.p;
     const params = this.state.anim.params['particle-network'];
-    const [r, g, b] = this.getAnimRgb();
+    const [r,g,b] = this.getAnimRgb();
     const dist   = params.distance;
-    const ps     = params.pointSize;
+    const sz     = this.getTextSize();
 
-    // Conexiones
-    p.strokeWeight(0.6);
+    p.strokeWeight(0.7);
     for (let i = 0; i < this.particles.length; i++) {
-      for (let j = i + 1; j < this.particles.length; j++) {
+      for (let j = i+1; j < this.particles.length; j++) {
         const dx = this.particles[j].x - this.particles[i].x;
         const dy = this.particles[j].y - this.particles[i].y;
         const d  = Math.sqrt(dx*dx + dy*dy);
         if (d < dist) {
-          const alpha = p.map(d, 0, dist, 200, 0);
+          const sameWord = this.particles[i].word === this.particles[j].word;
+          const alpha = p.map(d, 0, dist, sameWord ? 190 : 70, 0);
           p.stroke(r, g, b, alpha);
           p.line(this.particles[i].x, this.particles[i].y,
                  this.particles[j].x, this.particles[j].y);
         }
       }
     }
-    // Puntos
-    p.noStroke();
+    const ctx = p.drawingContext;
+    ctx.font         = getFont(this.state, sz * 0.8);
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
     for (const pt of this.particles) {
-      p.fill(r, g, b, 220);
-      p.ellipse(pt.x, pt.y, ps * 2, ps * 2);
-    }
-    // Punto temporal del mouse
-    p.stroke(r, g, b, 150);
-    p.strokeWeight(0.5);
-    for (const pt of this.particles) {
-      const dx = pt.x - this.mx;
-      const dy = pt.y - this.my;
-      const d  = Math.sqrt(dx*dx+dy*dy);
-      if (d < dist * 0.6) {
-        const alpha = p.map(d, 0, dist * 0.6, 180, 0);
-        p.stroke(r, g, b, alpha);
-        p.line(this.mx, this.my, pt.x, pt.y);
-      }
+      ctx.fillStyle = `rgba(${r},${g},${b},0.9)`;
+      ctx.fillText(pt.char, pt.x, pt.y);
     }
   }
 }
 
 /* =====================================================
-   3. FLOW FIELD — Campo de flujo Perlin noise
+   3. FLOW FIELD — Letras del mensaje siguiendo campo Perlin
+   TRIGGER DE LECTURA: cada ~6s las letras convergen al mensaje y se disuelven.
    ===================================================== */
 class FlowField extends BaseAnimation {
   constructor(p, state) {
     super(p, state);
-    this.particles = [];
-    this.buffer    = null;
+    this.particles  = [];
+    this.buffer     = null;
+    this.noiseZ     = 0;
+    this.frame      = 0;
+    this.converging = false;
+    this.convT      = 0;
     this.reset();
   }
 
   reset() {
     const params = this.state.anim.params['flow-field'];
-    const b = this.getBounds();
+    const b  = this.getBounds();
+    const sz = this.getTextSize();
     this.p.randomSeed(this.state.anim.seed);
-    this.particles = Array.from({ length: 500 }, () => ({
-      x:  this.p.random(b.x, b.x + b.w),
-      y:  this.p.random(b.y, b.y + b.h),
-      age: 0
+    const layout = getMessageLayout(b, sz);
+    this.particles = MESSAGE_CHARS.map((char, i) => ({
+      x:    this.p.random(b.x, b.x + b.w),
+      y:    this.p.random(b.y, b.y + b.h),
+      px:   undefined, py: undefined,
+      char,
+      tx:   layout[i].tx, ty: layout[i].ty
     }));
-    // Buffer persistente para rastros
-    if (!this.buffer) {
-      this.buffer = this.p.createGraphics(CANVAS_W, CANVAS_H);
-    }
-    const [bgR, bgG, bgB] = this.getBg();
+    if (!this.buffer) this.buffer = this.p.createGraphics(CANVAS_W, CANVAS_H);
+    const [bgR,bgG,bgB] = this.getBg();
     this.buffer.background(bgR, bgG, bgB);
-    this.noiseZ = 0;
+    this.noiseZ = 0; this.frame = 0;
+    this.converging = false; this.convT = 0;
   }
 
   advanceState() {
-    const params   = this.state.anim.params['flow-field'];
-    const spd      = this.state.anim.speed;
-    const b        = this.getBounds();
-    const ns       = params.noiseScale;
-    const maxAge   = params.trailLength;
-    this.noiseZ   += 0.003 * spd;
+    const params  = this.state.anim.params['flow-field'];
+    const spd     = this.state.anim.speed;
+    const b       = this.getBounds();
+    const ns      = params.noiseScale;
+    this.noiseZ  += 0.003 * spd;
+    this.frame   += spd;
+
+    if (this.frame % 190 < 2 && !this.converging) {
+      this.converging = true; this.convT = 0;
+    }
+    if (this.converging) {
+      this.convT += 0.022 * spd;
+      if (this.convT > 1) { this.converging = false; this.convT = 0; }
+    }
 
     for (const pt of this.particles) {
-      const n     = this.p.noise(pt.x * ns, pt.y * ns, this.noiseZ);
-      const angle = n * this.p.TWO_PI * 2;
-
-      // Distorsión local del mouse
-      const dx = this.mx - pt.x;
-      const dy = this.my - pt.y;
-      const d  = Math.sqrt(dx*dx + dy*dy);
-      const distortAngle = d < 120 ? Math.atan2(dy, dx) + this.p.PI * 0.5 : 0;
-      const blend = d < 120 ? (1 - d/120) * 0.6 : 0;
-      const finalAngle = angle * (1 - blend) + distortAngle * blend;
-
-      pt.px  = pt.x;
-      pt.py  = pt.y;
-      pt.x  += Math.cos(finalAngle) * params.speed * spd;
-      pt.y  += Math.sin(finalAngle) * params.speed * spd;
-      pt.age++;
-
-      // Reiniciar partícula al salir del área o por edad
-      if (pt.x < b.x || pt.x > b.x + b.w || pt.y < b.y || pt.y > b.y + b.h || pt.age > maxAge) {
-        pt.x   = this.p.random(b.x, b.x + b.w);
-        pt.y   = this.p.random(b.y, b.y + b.h);
-        pt.age = 0;
+      pt.px = pt.x; pt.py = pt.y;
+      if (this.converging) {
+        const ease = Math.sin(this.convT * Math.PI);
+        pt.x += (pt.tx - pt.x) * 0.09 * ease * spd;
+        pt.y += (pt.ty - pt.y) * 0.09 * ease * spd;
+      } else {
+        const n     = this.p.noise(pt.x*ns, pt.y*ns, this.noiseZ);
+        const angle = n * this.p.TWO_PI * 2;
+        const dx    = this.mx - pt.x, dy = this.my - pt.y;
+        const d     = Math.sqrt(dx*dx + dy*dy);
+        const blend = d < 120 ? (1 - d/120) * 0.45 : 0;
+        const distA = d < 120 ? Math.atan2(dy, dx) + this.p.PI * 0.5 : 0;
+        const fa    = angle*(1-blend) + distA*blend;
+        pt.x += Math.cos(fa) * params.speed * spd;
+        pt.y += Math.sin(fa) * params.speed * spd;
       }
+      if (pt.x < b.x)       pt.x = b.x + b.w;
+      if (pt.x > b.x + b.w) pt.x = b.x;
+      if (pt.y < b.y)       pt.y = b.y + b.h;
+      if (pt.y > b.y + b.h) pt.y = b.y;
     }
   }
 
   render() {
     const p      = this.p;
-    const params = this.state.anim.params['flow-field'];
-    const [r, g, b] = this.getAnimRgb();
-    const [bgR, bgG, bgB] = this.getBg();
+    const [r,g,b] = this.getAnimRgb();
+    const [bgR,bgG,bgB] = this.getBg();
     const buf    = this.buffer;
+    const sz     = this.getTextSize();
 
-    // Desvanecer el buffer con el color de fondo
-    buf.fill(bgR, bgG, bgB, 18);
+    buf.fill(bgR, bgG, bgB, this.converging ? 50 : 14);
     buf.noStroke();
     buf.rect(0, 0, CANVAS_W, CANVAS_H);
-
-    // Dibujar rastros en el buffer
-    buf.strokeWeight(1);
+    buf.drawingContext.font         = getFont(this.state, sz * 0.72);
+    buf.drawingContext.textAlign    = 'center';
+    buf.drawingContext.textBaseline = 'middle';
     for (const pt of this.particles) {
-      if (pt.px === undefined) continue;
-      const alpha = p.map(pt.age, 0, params.trailLength, 180, 0);
-      buf.stroke(r, g, b, alpha);
-      buf.line(pt.px, pt.py, pt.x, pt.y);
+      const a = this.converging ? Math.round(200 * Math.sin(this.convT * Math.PI) + 40) : 150;
+      buf.drawingContext.fillStyle = `rgba(${r},${g},${b},${a/255})`;
+      buf.drawingContext.fillText(pt.char, pt.x, pt.y);
     }
-
-    // Composite del buffer al canvas principal
     p.image(buf, 0, 0);
   }
 }
 
 /* =====================================================
-   4. GRID DISTORTION — Grilla deformable con mouse
+   4. GRID DISTORTION — Grilla de letras del mensaje deformable
+   TRIGGER DE LECTURA: en reposo / mouse lejos — las letras en sus posiciones
+   originales forman el mensaje tileado. Fila central siempre legible.
    ===================================================== */
 class GridDistortion extends BaseAnimation {
   constructor(p, state) {
@@ -422,96 +465,84 @@ class GridDistortion extends BaseAnimation {
   reset() {
     const params = this.state.anim.params['grid-distortion'];
     const b      = this.getBounds();
-    const n      = params.density;
-    const stepX  = b.w / n;
-    const stepY  = (b.h / n) * (b.h / b.w);
+    const sz     = this.getTextSize();
+    const cols   = Math.max(4, Math.round(b.w / (sz * 1.05)));
+    const rows   = Math.max(3, Math.round(b.h / (sz * 1.5)));
+    const stepX  = b.w / cols;
+    const stepY  = b.h / rows;
+    const midRow = Math.floor(rows / 2);
+    this.cols    = cols + 1;
     this.points  = [];
-    for (let iy = 0; iy <= Math.floor(b.h / stepY); iy++) {
-      for (let ix = 0; ix <= n; ix++) {
+
+    for (let iy = 0; iy <= rows; iy++) {
+      for (let ix = 0; ix <= cols; ix++) {
+        // Mid row cycles through the full message; other rows repeat MESSAGE_CHARS
+        let charIdx;
+        if (iy === midRow) {
+          charIdx = ix % MESSAGE_CHARS.length;
+        } else {
+          charIdx = (iy * (cols+1) + ix) % MESSAGE_CHARS.length;
+        }
         this.points.push({
-          ox: b.x + ix * stepX, // posición original
-          oy: b.y + iy * stepY,
-          x:  b.x + ix * stepX, // posición actual
-          y:  b.y + iy * stepY,
+          ox:       b.x + ix * stepX,
+          oy:       b.y + iy * stepY,
+          x:        b.x + ix * stepX,
+          y:        b.y + iy * stepY,
           vx: 0, vy: 0,
-          cols: n + 1,
-          row:  iy,
-          col:  ix
+          char:     MESSAGE_CHARS[charIdx],
+          isCenter: iy === midRow
         });
       }
     }
-    this.cols = n + 1;
   }
 
   advanceState() {
     const params = this.state.anim.params['grid-distortion'];
     const rad    = params.radius;
     const force  = params.force;
-    const spring = 0.08;
-    const damp   = 0.85;
-
     for (const pt of this.points) {
-      const dx = this.mx - pt.ox;
-      const dy = this.my - pt.oy;
+      if (pt.isCenter) continue; // center row stays fixed
+      const dx = this.mx - pt.ox, dy = this.my - pt.oy;
       const d  = Math.sqrt(dx*dx + dy*dy);
-      // Empuje radial desde el mouse
       let fx = 0, fy = 0;
       if (d < rad && d > 0) {
-        const strength = (1 - d / rad) * force;
-        fx = -(dx / d) * strength;
-        fy = -(dy / d) * strength;
+        const str = (1 - d/rad) * force;
+        fx = -(dx/d)*str; fy = -(dy/d)*str;
       }
-      // Resorte de retorno a posición original
-      fx += (pt.ox - pt.x) * spring;
-      fy += (pt.oy - pt.y) * spring;
-
-      pt.vx = (pt.vx + fx * 0.016) * damp;
-      pt.vy = (pt.vy + fy * 0.016) * damp;
-      pt.x += pt.vx;
-      pt.y += pt.vy;
+      fx += (pt.ox - pt.x) * 0.08;
+      fy += (pt.oy - pt.y) * 0.08;
+      pt.vx = (pt.vx + fx*0.016) * 0.85;
+      pt.vy = (pt.vy + fy*0.016) * 0.85;
+      pt.x += pt.vx; pt.y += pt.vy;
     }
   }
 
   render() {
-    const p      = this.p;
-    const params = this.state.anim.params['grid-distortion'];
-    const [r, g, b] = this.getAnimRgb();
-    const n      = this.cols;
-
-    p.noFill();
-    p.stroke(r, g, b, 160);
-    p.strokeWeight(0.8);
-
-    if (params.showLines && n > 0) {
-      for (let i = 0; i < this.points.length; i++) {
-        const pt  = this.points[i];
-        // Línea horizontal
-        if ((i % n) < n - 1) {
-          const right = this.points[i + 1];
-          if (right) p.line(pt.x, pt.y, right.x, right.y);
-        }
-        // Línea vertical
-        const below = this.points[i + n];
-        if (below) p.line(pt.x, pt.y, below.x, below.y);
-      }
-    }
-
-    // Puntos
-    p.noStroke();
-    p.fill(r, g, b, 200);
+    const [r,g,b] = this.getAnimRgb();
+    const sz      = this.getTextSize();
+    const ctx     = this.p.drawingContext;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
     for (const pt of this.points) {
-      p.ellipse(pt.x, pt.y, 3, 3);
+      const fs    = pt.isCenter ? sz * 0.92 : sz * 0.6;
+      const alpha = pt.isCenter ? 1.0 : 0.42;
+      ctx.font      = getFont(this.state, fs);
+      ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+      ctx.fillText(pt.char, pt.x, pt.y);
     }
   }
 }
 
 /* =====================================================
-   5. BOUNCING SHAPES — Formas con gravedad y rebote
+   5. BOUNCING SHAPES — Palabras que rebotan con física
+   TRIGGER DE LECTURA: click → todas las copias se ordenan en formación legible.
    ===================================================== */
 class BouncingShapes extends BaseAnimation {
   constructor(p, state) {
     super(p, state);
-    this.shapes = [];
+    this.shapes   = [];
+    this.snapMode = false;
+    this.snapT    = 0;
     this.reset();
   }
 
@@ -519,244 +550,269 @@ class BouncingShapes extends BaseAnimation {
     const params = this.state.anim.params['bouncing-shapes'];
     const b      = this.getBounds();
     this.p.randomSeed(this.state.anim.seed);
-    this.shapes  = Array.from({ length: params.count }, (_, i) => {
-      const shapeTypes = [];
-      if (params.shapes.circle)   shapeTypes.push('circle');
-      if (params.shapes.square)   shapeTypes.push('square');
-      if (params.shapes.triangle) shapeTypes.push('triangle');
-      const type = shapeTypes[Math.floor(this.p.random(shapeTypes.length))] || 'circle';
+    this.snapMode = false;
+    const baseSize = params.size || 32;
+    const defs = [
+      { word: 0, scale: 1.3 }, { word: 1, scale: 1.3 },
+      { word: 0, scale: 0.65 }, { word: 1, scale: 0.65 },
+      { word: 0, scale: 0.42 }, { word: 1, scale: 0.42 },
+      { word: 0, scale: 0.3  }, { word: 1, scale: 0.3  }
+    ];
+    this.shapes = defs.map(def => {
+      const sz = baseSize * def.scale;
+      const hw = MESSAGE_WORDS[def.word].length * sz * 0.31;
+      const hh = sz * 0.5;
       return {
-        x:    this.p.random(b.x + 30, b.x + b.w - 30),
-        y:    this.p.random(b.y, b.y + b.h * 0.5),
-        vx:   this.p.random(-5, 5),
-        vy:   this.p.random(-4, 1),
-        r:    params.size,
-        type: type,
-        rot:  this.p.random(this.p.TWO_PI),
-        rotV: this.p.random(-0.12, 0.12),
-        label: 'PCDSTG2026'.charAt(i % 10)
+        x:    this.p.random(b.x + hw, b.x + b.w - hw),
+        y:    this.p.random(b.y + hh, b.y + b.h * 0.5),
+        vx:   this.p.random(-4, 4),
+        vy:   this.p.random(-3, 2),
+        hw, hh, sz,
+        text: MESSAGE_WORDS[def.word],
+        word: def.word,
+        tx: 0, ty: 0
       };
     });
+    this._computeTargets(b);
+  }
+
+  _computeTargets(b) {
+    if (!b) b = this.getBounds();
+    const cy = b.y + b.h * 0.5;
+    for (const s of this.shapes) {
+      s.tx = b.x + b.w * 0.5;
+      s.ty = s.word === 0 ? cy - s.sz * 0.7 : cy + s.sz * 0.7;
+    }
   }
 
   advanceState() {
     const params = this.state.anim.params['bouncing-shapes'];
     const spd    = this.state.anim.speed;
     const b      = this.getBounds();
-    const g      = params.gravity * 0.12 * spd;
+    const grav   = params.gravity * 0.12 * spd;
     const e      = params.elasticity;
 
-    for (const s of this.shapes) {
-      s.vy += g;
-      s.x  += s.vx * spd;
-      s.y  += s.vy * spd;
-      s.rot += s.rotV * spd;
-
-      // Mouse push
-      const dx = s.x - this.mx;
-      const dy = s.y - this.my;
-      const d  = Math.sqrt(dx*dx+dy*dy);
-      if (d < 100 && d > 0) {
-        s.vx += (dx/d) * 3 * spd;
-        s.vy += (dy/d) * 3 * spd;
-      }
-
-      // Rebotes en límites
-      if (s.x - s.r < b.x)        { s.x = b.x + s.r;          s.vx = Math.abs(s.vx) * e; }
-      if (s.x + s.r > b.x + b.w)  { s.x = b.x + b.w - s.r;    s.vx = -Math.abs(s.vx) * e; }
-      if (s.y - s.r < b.y)        { s.y = b.y + s.r;           s.vy = Math.abs(s.vy) * e; }
-      if (s.y + s.r > b.y + b.h)  { s.y = b.y + b.h - s.r;    s.vy = -Math.abs(s.vy) * e * 0.8; s.vx *= 0.98; }
+    if (this.snapMode) {
+      this.snapT += 0.04 * spd;
+      if (this.snapT > 1) { this.snapMode = false; this.snapT = 1; }
     }
 
-    // Colisiones entre formas
-    for (let i = 0; i < this.shapes.length; i++) {
-      for (let j = i+1; j < this.shapes.length; j++) {
-        resolveCircleCollision(this.shapes[i], this.shapes[j], params.elasticity);
+    for (const s of this.shapes) {
+      if (this.snapMode) {
+        s.x  += (s.tx - s.x) * 0.09 * spd;
+        s.y  += (s.ty - s.y) * 0.09 * spd;
+        s.vx *= 0.85; s.vy *= 0.85;
+        continue;
       }
+      s.vy += grav;
+      s.x  += s.vx * spd;
+      s.y  += s.vy * spd;
+      // Mouse friction — slow down nearby shapes
+      const dx = s.x - this.mx, dy = s.y - this.my;
+      const d  = Math.sqrt(dx*dx + dy*dy);
+      if (d < 130 && d > 0) {
+        const fr = 1 - (1 - d/130) * 0.1 * spd;
+        s.vx *= fr; s.vy *= fr;
+      }
+      if (s.x - s.hw < b.x)       { s.x = b.x + s.hw;         s.vx =  Math.abs(s.vx)*e; }
+      if (s.x + s.hw > b.x + b.w) { s.x = b.x + b.w - s.hw;   s.vx = -Math.abs(s.vx)*e; }
+      if (s.y - s.hh < b.y)       { s.y = b.y + s.hh;          s.vy =  Math.abs(s.vy)*e; }
+      if (s.y + s.hh > b.y + b.h) { s.y = b.y + b.h - s.hh;   s.vy = -Math.abs(s.vy)*e*0.8; s.vx *= 0.98; }
     }
   }
 
   render() {
-    const p      = this.p;
-    const [r, g, b] = this.getAnimRgb();
-
-    p.stroke(r, g, b, 200);
-    p.strokeWeight(1.5);
-    p.noFill();
-
+    const ctx     = this.p.drawingContext;
+    const [r,g,b] = this.getAnimRgb();
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
     for (const s of this.shapes) {
-      p.push();
-      p.translate(s.x, s.y);
-      p.rotate(s.rot);
-      const sz = s.r;
+      const alpha = s.sz > 30 ? 0.88 : 0.48;
+      ctx.font        = getFont(this.state, s.sz);
+      ctx.fillStyle   = `rgba(${r},${g},${b},${alpha})`;
+      ctx.strokeStyle = `rgba(${r},${g},${b},${alpha * 0.25})`;
+      ctx.lineWidth   = 1;
+      ctx.strokeText(s.text, s.x, s.y);
+      ctx.fillText(s.text,   s.x, s.y);
+    }
+  }
 
-      if (s.type === 'circle') {
-        p.ellipse(0, 0, sz * 2, sz * 2);
-      } else if (s.type === 'square') {
-        p.rect(-sz, -sz, sz * 2, sz * 2);
-      } else {
-        p.triangle(0, -sz, -sz * 0.866, sz * 0.5, sz * 0.866, sz * 0.5);
-      }
-
-      // Letra/símbolo interior
-      p.fill(r, g, b, 200);
-      p.noStroke();
-      p.drawingContext.font         = `700 ${Math.round(sz * 0.7)}px 'Space Mono', monospace`;
-      p.drawingContext.textAlign    = 'center';
-      p.drawingContext.textBaseline = 'middle';
-      p.drawingContext.fillStyle    = `rgba(${r},${g},${b},0.9)`;
-      p.drawingContext.fillText(s.label, 0, 0);
-      p.pop();
+  handleMouse(cx, cy, type) {
+    super.handleMouse(cx, cy, type);
+    if (type === 'press') {
+      this._computeTargets();
+      this.snapMode = true;
+      this.snapT    = 0;
     }
   }
 }
 
 /* =====================================================
-   6. WAVE INTERFERENCE — Interferencia de ondas
+   6. WAVE INTERFERENCE — Líneas de texto que ondean
+   TRIGGER DE LECTURA: mouse lejos → ondas se aplanan, mensaje legible en filas.
    ===================================================== */
 class WaveInterference extends BaseAnimation {
   constructor(p, state) {
     super(p, state);
-    this.emitters = [];
     this.t = 0;
+    this.rowPhases = [];
     this.reset();
   }
 
   reset() {
     const params = this.state.anim.params['wave-interference'];
     this.p.randomSeed(this.state.anim.seed);
-    this.emitters = Array.from({ length: params.emitters }, (_, i) => ({
-      x: CANVAS_W * (i + 1) / (params.emitters + 1),
-      y: CANVAS_H * 0.5 + this.p.random(-100, 100)
-    }));
     this.t = 0;
+    this.rowPhases = Array.from({ length: params.emitters }, (_, i) =>
+      i * (Math.PI * 2 / params.emitters) + this.p.random(Math.PI)
+    );
   }
 
   advanceState() {
-    this.t += 0.04 * this.state.anim.speed;
-    // El primer emisor sigue al mouse suavemente
-    if (this.emitters.length > 0) {
-      this.emitters[0].x += (this.mx - this.emitters[0].x) * 0.05;
-      this.emitters[0].y += (this.my - this.emitters[0].y) * 0.05;
-    }
+    this.t += 0.022 * this.state.anim.speed;
   }
 
   render() {
     const p      = this.p;
     const params = this.state.anim.params['wave-interference'];
-    const [r, g, b] = this.getAnimRgb();
-    const res    = params.resolution;
+    const [r,g,b] = this.getAnimRgb();
+    const sz     = this.getTextSize();
+    const b_     = this.getBounds();
     const freq   = params.frequency;
     const amp    = params.amplitude;
+    const numRows = params.emitters;
+    const ctx    = p.drawingContext;
+    const charW  = sz * 0.62;
+    const rowH   = b_.h / (numRows + 1);
 
-    p.noStroke();
-    for (let x = 0; x < CANVAS_W; x += res) {
-      for (let y = 0; y < CANVAS_H; y += res) {
-        let sum = 0;
-        for (const em of this.emitters) {
-          const dx = x - em.x;
-          const dy = y - em.y;
-          const d  = Math.sqrt(dx*dx + dy*dy);
-          sum += Math.sin(d * freq - this.t) * amp;
-        }
-        const v = Math.sin(sum * 0.04);
-        const alpha = (v * 0.5 + 0.5) * 200;
-        p.fill(r, g, b, alpha);
-        p.rect(x, y, res, res);
+    // Mouse controls local amplitude
+    const inCanvas = b_.x <= this.mx && this.mx <= b_.x + b_.w;
+    const mAmp     = inCanvas ? amp : amp * 0.2;
+
+    const repeat = (MESSAGE + '  ').repeat(6);
+    ctx.font         = getFont(this.state, sz * 0.78);
+    ctx.textBaseline = 'middle';
+
+    for (let ri = 0; ri < numRows; ri++) {
+      const baseY    = b_.y + (ri + 1) * rowH;
+      const phase    = this.rowPhases[ri];
+      const rowAlpha = p.map(ri, 0, numRows - 1, 0.92, 0.3);
+
+      for (let ci = 0; ci < repeat.length; ci++) {
+        const ch = repeat[ci];
+        const cx_ = b_.x - charW + ci * charW;
+        if (cx_ > b_.x + b_.w + charW) break;
+
+        const waveY = Math.sin(this.t + phase + ci * freq) * mAmp;
+        const mdx   = cx_ - this.mx, mdy = baseY - this.my;
+        const md    = Math.sqrt(mdx*mdx + mdy*mdy);
+        const local = md < 160 ? Math.sin(this.t*2.5 + md*0.04) * (1 - md/160) * amp * 0.7 : 0;
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = `rgba(${r},${g},${b},${rowAlpha})`;
+        ctx.fillText(ch, cx_, baseY + waveY + local);
       }
-    }
-    // Indicadores de los emisores
-    p.stroke(r, g, b, 200);
-    p.strokeWeight(1);
-    p.noFill();
-    for (const em of this.emitters) {
-      p.ellipse(em.x, em.y, 12, 12);
     }
   }
 }
 
 /* =====================================================
-   7. CODE RAIN — Lluvia de código Processing/p5.js
+   7. CODE RAIN — Lluvia con letras de CONVOCATORIA ABIERTA
+   TRIGGER DE LECTURA: columnas sincronizadas forman el mensaje en vertical.
+   Mouse cerca de una columna la congela.
    ===================================================== */
-const CODE_CHARSETS = {
-  p5js:    ['ellipse','rect','fill','stroke','setup','draw','mouseX','mouseY','noise','random','vertex','beginShape','endShape','translate','rotate','scale','push','pop','map','dist','lerp'].join(''),
-  latin:   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
-  katakana:'ｦｧｨｩｪｫｬｭｮｯｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ',
-  numbers: '0123456789!@#$%^&*()_+-=[]{}|;:,.<>?'
-};
-
 class CodeRain extends BaseAnimation {
   constructor(p, state) {
     super(p, state);
     this.drops  = [];
     this.buffer = null;
+    this.frame  = 0;
     this.reset();
   }
 
   reset() {
-    const params  = this.state.anim.params['code-rain'];
-    const colW    = 18;
-    const cols    = Math.floor(CANVAS_W / colW);
+    const sz   = this.getTextSize();
+    const colW = Math.max(18, Math.round(sz * 0.72));
+    const cols = Math.floor(CANVAS_W / colW);
     this.p.randomSeed(this.state.anim.seed);
-    this.drops    = Array.from({ length: cols }, () => this.p.random(-CANVAS_H, 0));
     this.colW     = colW;
-    if (!this.buffer) {
-      this.buffer = this.p.createGraphics(CANVAS_W, CANVAS_H);
-    }
-    const [bgR, bgG, bgB] = this.getBg();
+    this.fontSize = sz * 0.72;
+    // Every 3rd column is a "message column" — will display MESSAGE vertically
+    this.msgCols = new Set();
+    const spacing = Math.max(3, Math.floor(cols / 4));
+    for (let i = spacing; i < cols; i += spacing) this.msgCols.add(i);
+
+    this.drops = Array.from({ length: cols }, () => ({
+      y:     this.p.random(-CANVAS_H, 0),
+      charI: Math.floor(this.p.random(MESSAGE_CHARS.length)),
+      dir:   this.p.random() > 0.12 ? 1 : -1
+    }));
+
+    if (!this.buffer) this.buffer = this.p.createGraphics(CANVAS_W, CANVAS_H);
+    const [bgR,bgG,bgB] = this.getBg();
     this.buffer.background(bgR, bgG, bgB);
+    this.frame = 0;
   }
 
   advanceState() {
-    const params = this.state.anim.params['code-rain'];
-    const spd    = this.state.anim.speed;
-    const colW   = this.colW;
+    const params  = this.state.anim.params['code-rain'];
+    const spd     = this.state.anim.speed;
+    const colW    = this.colW;
+    const fs      = this.fontSize;
+    this.frame   += spd;
 
-    // Fade del buffer
-    const [bgR, bgG, bgB] = this.getBg();
-    this.buffer.fill(bgR, bgG, bgB, 22);
+    const [bgR,bgG,bgB] = this.getBg();
+    this.buffer.fill(bgR, bgG, bgB, 20);
     this.buffer.noStroke();
     this.buffer.rect(0, 0, CANVAS_W, CANVAS_H);
 
-    const charset = CODE_CHARSETS[params.charset] || CODE_CHARSETS.p5js;
-    const [r, g, b] = this.getAnimRgb();
-    const fontSize  = 14;
-    this.buffer.textSize(fontSize);
-    this.buffer.drawingContext.font         = `400 ${fontSize}px 'Space Mono', monospace`;
-    this.buffer.drawingContext.textBaseline = 'top';
+    const [r,g,b] = this.getAnimRgb();
+    const bCtx    = this.buffer.drawingContext;
+    bCtx.font         = getFont(this.state, fs);
+    bCtx.textBaseline = 'top';
+    bCtx.textAlign    = 'center';
 
     for (let i = 0; i < this.drops.length; i++) {
-      const ch = charset[Math.floor(Math.random() * charset.length)];
-      const x  = i * colW;
-      const y  = this.drops[i];
+      const drop = this.drops[i];
+      const x    = i * colW + colW * 0.5;
 
-      // Velocidad en zona cercana al mouse aumenta
-      const dx   = x - this.mx;
-      const dist = Math.abs(dx);
-      const vel  = params.dropSpeed * spd * (1 + (dist < 80 ? 1.5 : 0));
+      // Mouse freezes nearby columns
+      if (Math.abs(x - this.mx) < colW * 1.6) continue;
 
-      // Carácter principal brillante
-      this.buffer.drawingContext.fillStyle = `rgba(${r},${g},${b},1)`;
-      this.buffer.drawingContext.fillText(ch, x, y);
-      // Carácter previo más oscuro
-      const ch2 = charset[Math.floor(Math.random() * charset.length)];
-      this.buffer.drawingContext.fillStyle = `rgba(${r},${g},${b},0.4)`;
-      this.buffer.drawingContext.fillText(ch2, x, y - fontSize);
+      drop.charI = (drop.charI + 1) % MESSAGE_CHARS.length;
+      const ch   = MESSAGE_CHARS[drop.charI];
+      const prevCh = MESSAGE_CHARS[(drop.charI - 1 + MESSAGE_CHARS.length) % MESSAGE_CHARS.length];
 
-      this.drops[i] += vel;
-      if (this.drops[i] > CANVAS_H && Math.random() > 0.975) {
-        this.drops[i] = 0;
+      drop.y += params.dropSpeed * spd * drop.dir;
+
+      bCtx.fillStyle = `rgba(${r},${g},${b},1)`;
+      bCtx.fillText(ch, x, drop.y);
+      bCtx.fillStyle = `rgba(${r},${g},${b},0.3)`;
+      bCtx.fillText(prevCh, x, drop.y - fs * drop.dir);
+
+      if (drop.dir === 1 && drop.y > CANVAS_H && Math.random() > 0.975) drop.y = 0;
+      if (drop.dir === -1 && drop.y < 0       && Math.random() > 0.975) drop.y = CANVAS_H;
+
+      // Message columns: every ~100 frames show MESSAGE vertically
+      if (this.msgCols.has(i) && Math.floor(this.frame) % 100 < MESSAGE_CHARS.length) {
+        const mi    = Math.floor(this.frame) % 100;
+        if (mi < MESSAGE_CHARS.length) {
+          const msgY = CANVAS_H * 0.18 + mi * (fs * 1.3);
+          bCtx.fillStyle = `rgba(${r},${g},${b},0.95)`;
+          bCtx.fillText(MESSAGE_CHARS[mi], x, msgY);
+        }
       }
     }
   }
 
-  render() {
-    this.p.image(this.buffer, 0, 0);
-  }
+  render() { this.p.image(this.buffer, 0, 0); }
 }
 
 /* =====================================================
-   8. CONSTELLATION — Constelaciones dinámicas
+   8. CONSTELLATION — Constelación del mensaje
+   TRIGGER DE LECTURA: mouse lejos → letras orbitan posiciones target,
+   líneas secuenciales forman el trazo del mensaje.
+   Mouse cerca → órbitas se desorganizan.
    ===================================================== */
 class Constellation extends BaseAnimation {
   constructor(p, state) {
@@ -768,81 +824,89 @@ class Constellation extends BaseAnimation {
   reset() {
     const params = this.state.anim.params['constellation'];
     const b      = this.getBounds();
+    const sz     = this.getTextSize();
     this.p.randomSeed(this.state.anim.seed);
-    this.stars   = Array.from({ length: params.count }, () => ({
-      x:  this.p.random(b.x, b.x + b.w),
-      y:  this.p.random(b.y, b.y + b.h),
-      vx: this.p.random(-params.speed, params.speed),
-      vy: this.p.random(-params.speed, params.speed),
-      r:  this.p.random(1, params.pointSize)
-    }));
+    const layout = getMessageLayout(b, sz);
+    this.stars = MESSAGE_CHARS.map((char, i) => {
+      const tgt   = layout[i];
+      const angle = this.p.random(this.p.TWO_PI);
+      const orbit = this.p.random(12, 45);
+      return {
+        tx:    tgt.tx,   ty:    tgt.ty,
+        x:     tgt.tx + Math.cos(angle) * orbit,
+        y:     tgt.ty + Math.sin(angle) * orbit,
+        vx:    0,        vy:    0,
+        char,
+        orbit, angle,
+        angV:  (this.p.random(-0.025, 0.025) || 0.01) * (1 + Math.random() * 0.5),
+        word:  i < 12 ? 0 : 1
+      };
+    });
   }
 
   advanceState() {
-    const params = this.state.anim.params['constellation'];
-    const spd    = this.state.anim.speed;
-    const b      = this.getBounds();
-
-    if (this.stars.length !== params.count) this.reset();
-
+    const spd = this.state.anim.speed;
+    const b   = this.getBounds();
     for (const s of this.stars) {
-      s.x += s.vx * spd;
-      s.y += s.vy * spd;
-      if (s.x < b.x)       { s.x = b.x;       s.vx *= -1; }
-      if (s.x > b.x + b.w) { s.x = b.x + b.w; s.vx *= -1; }
-      if (s.y < b.y)        { s.y = b.y;       s.vy *= -1; }
-      if (s.y > b.y + b.h) { s.y = b.y + b.h; s.vy *= -1; }
+      const dx   = this.mx - s.tx, dy = this.my - s.ty;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 220) {
+        const t = (1 - dist/220);
+        s.vx += (Math.random() - 0.5) * 2 * t * spd * 0.6;
+        s.vy += (Math.random() - 0.5) * 2 * t * spd * 0.6;
+        s.x  += s.vx; s.y += s.vy;
+        s.vx *= 0.90; s.vy *= 0.90;
+        const tX = s.tx + Math.cos(s.angle) * s.orbit;
+        const tY = s.ty + Math.sin(s.angle) * s.orbit;
+        s.x += (tX - s.x) * 0.025; s.y += (tY - s.y) * 0.025;
+      } else {
+        s.angle += s.angV * spd;
+        const tX = s.tx + Math.cos(s.angle) * s.orbit;
+        const tY = s.ty + Math.sin(s.angle) * s.orbit;
+        s.x  += (tX - s.x) * 0.18;
+        s.y  += (tY - s.y) * 0.18;
+        s.vx  = 0; s.vy = 0;
+      }
+      s.x = Math.max(b.x, Math.min(b.x + b.w, s.x));
+      s.y = Math.max(b.y, Math.min(b.y + b.h, s.y));
     }
   }
 
   render() {
     const p      = this.p;
-    const params = this.state.anim.params['constellation'];
-    const [r, g, b] = this.getAnimRgb();
-    const dist   = params.distance;
+    const [r,g,b] = this.getAnimRgb();
+    const sz     = this.getTextSize();
 
-    // Conexiones
-    p.strokeWeight(0.5);
-    for (let i = 0; i < this.stars.length; i++) {
-      for (let j = i + 1; j < this.stars.length; j++) {
-        const dx = this.stars[j].x - this.stars[i].x;
-        const dy = this.stars[j].y - this.stars[i].y;
-        const d  = Math.sqrt(dx*dx + dy*dy);
-        if (d < dist) {
-          const alpha = p.map(d, 0, dist, 150, 0);
-          p.stroke(r, g, b, alpha);
-          p.line(this.stars[i].x, this.stars[i].y, this.stars[j].x, this.stars[j].y);
-        }
-      }
-      // Conexión al mouse
-      const dx = this.mx - this.stars[i].x;
-      const dy = this.my - this.stars[i].y;
-      const d  = Math.sqrt(dx*dx+dy*dy);
-      if (d < dist * 0.8) {
-        const alpha = p.map(d, 0, dist * 0.8, 200, 0);
-        p.stroke(r, g, b, alpha);
-        p.line(this.stars[i].x, this.stars[i].y, this.mx, this.my);
-      }
+    // Sequential connections — trazo del mensaje
+    p.strokeWeight(0.9);
+    for (let i = 0; i < this.stars.length - 1; i++) {
+      if (i === 11) continue; // gap between words
+      const s1 = this.stars[i], s2 = this.stars[i+1];
+      const d  = Math.sqrt((s2.x-s1.x)**2 + (s2.y-s1.y)**2);
+      const a  = p.map(d, 0, 280, 160, 0);
+      p.stroke(r, g, b, a);
+      p.line(s1.x, s1.y, s2.x, s2.y);
     }
-    // Estrellas
-    p.noStroke();
+    // Letter nodes
+    const ctx = p.drawingContext;
+    ctx.font         = getFont(this.state, sz * 0.78);
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
     for (const s of this.stars) {
-      p.fill(r, g, b, 230);
-      p.ellipse(s.x, s.y, s.r * 2, s.r * 2);
+      ctx.fillStyle = `rgba(${r},${g},${b},0.92)`;
+      ctx.fillText(s.char, s.x, s.y);
     }
-    // Punto del mouse
-    p.fill(r, g, b, 180);
-    p.ellipse(this.mx, this.my, 6, 6);
   }
 }
 
 /* =====================================================
-   9. ELASTIC MESH — Malla elástica con resortes
+   9. ELASTIC MESH — Letras del mensaje conectadas por resortes
+   TRIGGER DE LECTURA: al soltar el arrastre, la cadena retorna al mensaje legible.
    ===================================================== */
 class ElasticMesh extends BaseAnimation {
   constructor(p, state) {
     super(p, state);
-    this.nodes  = [];
+    this.nodes   = [];
     this.dragIdx = -1;
     this.reset();
   }
@@ -850,95 +914,81 @@ class ElasticMesh extends BaseAnimation {
   reset() {
     const params = this.state.anim.params['elastic-mesh'];
     const b      = this.getBounds();
-    const cols   = params.resX;
-    const rows   = params.resY;
-    const stepX  = b.w / (cols - 1);
-    const stepY  = b.h / (rows - 1);
-    this.cols    = cols;
-    this.rows    = rows;
-    this.nodes   = [];
-
-    for (let iy = 0; iy < rows; iy++) {
-      for (let ix = 0; ix < cols; ix++) {
-        const ox = b.x + ix * stepX;
-        const oy = b.y + iy * stepY;
-        this.nodes.push({ ox, oy, x: ox, y: oy, vx: 0, vy: 0 });
-      }
-    }
+    const sz     = this.getTextSize();
+    const layout = getMessageLayout(b, sz);
+    this.nodes   = MESSAGE_CHARS.map((char, i) => {
+      const tgt = layout[i];
+      return {
+        ox:   tgt.tx, oy: tgt.ty,
+        x:    tgt.tx + (Math.random()-0.5)*220,
+        y:    tgt.ty + (Math.random()-0.5)*220,
+        vx:   0, vy: 0,
+        char,
+        word: i < 12 ? 0 : 1
+      };
+    });
+    this.dragIdx = -1;
   }
 
   advanceState() {
-    const params  = this.state.anim.params['elastic-mesh'];
-    const k       = params.stiffness;
-    const damp    = params.damping;
-    const cols    = this.cols;
+    const params = this.state.anim.params['elastic-mesh'];
+    const k      = params.stiffness;
+    const damp   = params.damping;
 
-    // Si arrastrando, mover nodo seleccionado
     if (this.dragIdx >= 0) {
       const n = this.nodes[this.dragIdx];
-      n.x = this.mx;
-      n.y = this.my;
-      n.vx = 0; n.vy = 0;
+      n.x = this.mx; n.y = this.my; n.vx = 0; n.vy = 0;
     }
 
     for (let i = 0; i < this.nodes.length; i++) {
       if (i === this.dragIdx) continue;
       const n  = this.nodes[i];
-      let fx   = (n.ox - n.x) * k; // resorte al origen
+      let fx   = (n.ox - n.x) * k;
       let fy   = (n.oy - n.y) * k;
-
-      // Influencia de vecinos
-      const neighbors = [i-1, i+1, i-cols, i+cols];
-      for (const ni of neighbors) {
+      // Spring to adjacent chars
+      for (const ni of [i-1, i+1]) {
         if (ni < 0 || ni >= this.nodes.length) continue;
+        if ((i === 11 && ni === 12) || (i === 12 && ni === 11)) continue;
         const nb = this.nodes[ni];
-        const dx = nb.x - n.x;
-        const dy = nb.y - n.y;
-        fx += dx * k * 0.3;
-        fy += dy * k * 0.3;
+        fx += (nb.x - n.x) * k * 0.55;
+        fy += (nb.y - n.y) * k * 0.55;
       }
-
       n.vx = (n.vx + fx) * damp;
       n.vy = (n.vy + fy) * damp;
-      n.x += n.vx;
-      n.y += n.vy;
+      n.x += n.vx; n.y += n.vy;
     }
   }
 
   render() {
     const p      = this.p;
     const params = this.state.anim.params['elastic-mesh'];
-    const [r, g, b] = this.getAnimRgb();
-    const cols   = this.cols;
+    const [r,g,b] = this.getAnimRgb();
+    const sz     = this.getTextSize();
 
-    p.stroke(r, g, b, 150);
+    // Spring lines
+    p.stroke(r, g, b, 80);
     p.strokeWeight(params.lineWeight);
-    p.noFill();
-
-    for (let i = 0; i < this.nodes.length; i++) {
-      const n = this.nodes[i];
-      if ((i % cols) < cols - 1) {
-        const right = this.nodes[i + 1];
-        if (right) p.line(n.x, n.y, right.x, right.y);
-      }
-      const below = this.nodes[i + cols];
-      if (below) p.line(n.x, n.y, below.x, below.y);
+    for (let i = 0; i < this.nodes.length - 1; i++) {
+      if (i === 11) continue;
+      p.line(this.nodes[i].x, this.nodes[i].y, this.nodes[i+1].x, this.nodes[i+1].y);
     }
-
-    // Nodo dragging
-    if (this.dragIdx >= 0) {
-      const n = this.nodes[this.dragIdx];
-      p.fill(r, g, b, 220);
-      p.noStroke();
-      p.ellipse(n.x, n.y, 12, 12);
+    // Letters
+    const ctx = p.drawingContext;
+    ctx.font         = getFont(this.state, sz * 0.88);
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < this.nodes.length; i++) {
+      const n   = this.nodes[i];
+      const a   = i === this.dragIdx ? 1.0 : 0.88;
+      ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
+      ctx.fillText(n.char, n.x, n.y);
     }
   }
 
   handleMouse(cx, cy, type) {
     super.handleMouse(cx, cy, type);
     if (type === 'press') {
-      let minD = 40;
-      this.dragIdx = -1;
+      let minD = 55; this.dragIdx = -1;
       for (let i = 0; i < this.nodes.length; i++) {
         const n = this.nodes[i];
         const d = Math.sqrt((cx-n.x)**2 + (cy-n.y)**2);
@@ -950,7 +1000,9 @@ class ElasticMesh extends BaseAnimation {
 }
 
 /* =====================================================
-   10. ROTATING TYPOGRAPHY — Tipografía cinética
+   10. ROTATING TYPOGRAPHY — CONVOCATORIA ABIERTA en 2 líneas, letras rotando
+   TRIGGER DE LECTURA: mouse proximity → letras cercanas se enderezan a 0°,
+   revelando el mensaje con claridad local.
    ===================================================== */
 class RotatingTypography extends BaseAnimation {
   constructor(p, state) {
@@ -962,72 +1014,42 @@ class RotatingTypography extends BaseAnimation {
   reset() {
     const params = this.state.anim.params['rotating-typography'];
     const b      = this.getBounds();
+    const sz     = this.getTextSize();
     this.p.randomSeed(this.state.anim.seed);
-    const chars  = params.text.toUpperCase().replace(/\s+/g, '').split('');
-
-    if (params.distribution === 'grid') {
-      const cols  = Math.ceil(Math.sqrt(chars.length * b.w / b.h));
-      const rows  = Math.ceil(chars.length / cols);
-      const stepX = b.w / cols;
-      const stepY = b.h / rows;
-      this.letters = chars.map((ch, i) => ({
-        x:     b.x + (i % cols + 0.5) * stepX,
-        y:     b.y + (Math.floor(i / cols) + 0.5) * stepY,
-        ch,
-        rot:   this.p.random(this.p.TWO_PI),
-        rotV:  this.p.random(-0.06, 0.06) * params.speed
-      }));
-    } else if (params.distribution === 'circular') {
-      this.letters = chars.map((ch, i) => {
-        const angle = (i / chars.length) * this.p.TWO_PI;
-        const rx    = b.w * 0.35;
-        const ry    = b.h * 0.35;
-        return {
-          x: b.x + b.w * 0.5 + Math.cos(angle) * rx,
-          y: b.y + b.h * 0.5 + Math.sin(angle) * ry,
-          ch, rot: angle,
-          rotV: this.p.random(-0.06, 0.06) * params.speed
-        };
-      });
-    } else {
-      this.letters = chars.map(ch => ({
-        x:    this.p.random(b.x + 30, b.x + b.w - 30),
-        y:    this.p.random(b.y + 30, b.y + b.h - 30),
-        ch,
-        rot:  this.p.random(this.p.TWO_PI),
-        rotV: this.p.random(-0.06, 0.06) * params.speed
-      }));
-    }
+    const layout = getMessageLayout(b, sz);
+    this.letters = MESSAGE_CHARS.map((char, i) => {
+      const tgt  = layout[i];
+      const rotV = (this.p.random(-0.04, 0.04) + (Math.random() > 0.5 ? 0.012 : -0.012)) * params.speed;
+      return { x: tgt.tx, y: tgt.ty, ch: char, rot: this.p.random(this.p.TWO_PI), rotV };
+    });
   }
 
   advanceState() {
     const params = this.state.anim.params['rotating-typography'];
     const spd    = this.state.anim.speed;
-
     for (const lt of this.letters) {
-      // Rotación más rápida cerca del mouse
-      const dx    = this.mx - lt.x;
-      const dy    = this.my - lt.y;
-      const d     = Math.sqrt(dx*dx + dy*dy);
-      const boost = d < 150 ? (1 - d/150) * 5 : 0;
-      lt.rot += (lt.rotV + Math.sign(lt.rotV) * boost) * spd;
+      const dx = this.mx - lt.x, dy = this.my - lt.y;
+      const d  = Math.sqrt(dx*dx + dy*dy);
+      if (d < 160) {
+        // Ease to 0 rotation near mouse
+        lt.rot += (0 - lt.rot) * (1 - d/160) * 0.09 * spd;
+      } else {
+        lt.rot += lt.rotV * spd;
+      }
     }
   }
 
   render() {
     const p      = this.p;
-    const params = this.state.anim.params['rotating-typography'];
-    const [r, g, b] = this.getAnimRgb();
-    const sz     = params.letterSize;
-
-    p.drawingContext.font      = `700 ${sz}px 'Space Mono', monospace`;
+    const [r,g,b] = this.getAnimRgb();
+    const sz     = this.getTextSize();
+    p.drawingContext.font      = getFont(this.state, sz * 0.92);
     p.drawingContext.textAlign = 'center';
-
     for (const lt of this.letters) {
       p.push();
       p.translate(lt.x, lt.y);
       p.rotate(lt.rot);
-      p.drawingContext.fillStyle    = `rgba(${r},${g},${b},0.9)`;
+      p.drawingContext.fillStyle    = `rgba(${r},${g},${b},0.92)`;
       p.drawingContext.textBaseline = 'middle';
       p.drawingContext.fillText(lt.ch, 0, 0);
       p.pop();
