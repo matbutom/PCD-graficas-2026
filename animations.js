@@ -57,9 +57,12 @@ function getMessageLayout(b, fontSize) {
 }
 
 // Construye el string de fuente leyendo del estado global
+// Para animaciones usa state.anim.font; el title sigue usando state.title.font
 function getFont(state, size) {
-  const f = (state.title && state.title.font) ? state.title.font : 'Space Mono';
-  return `700 ${Math.round(size)}px '${f}', monospace`;
+  const f = (state.anim && state.anim.font) ? state.anim.font :
+            (state.title && state.title.font) ? state.title.font : 'Space Mono';
+  const w = (state.anim && state.anim.fontWeight) ? state.anim.fontWeight : '700';
+  return `${w} ${Math.round(size)}px '${f}', sans-serif`;
 }
 
 /* =====================================================
@@ -119,7 +122,15 @@ class BaseAnimation {
 
   getFg()      { return hexToRgb(this.state.preset.fg); }
   getBg()      { return hexToRgb(this.state.preset.bg); }
-  getAnimRgb() { return hexToRgb(this.state.preset.animColor); }
+  getAnimRgb() {
+    // Fallback: si animColor no contrasta bien con bg, usar fg
+    const anim = hexToRgb(this.state.preset.animColor);
+    const bg   = hexToRgb(this.state.preset.bg);
+    const lumA = (anim[0]*0.299 + anim[1]*0.587 + anim[2]*0.114) / 255;
+    const lumB = (bg[0]*0.299   + bg[1]*0.587   + bg[2]*0.114)   / 255;
+    if (Math.abs(lumA - lumB) < 0.22) return hexToRgb(this.state.preset.fg);
+    return anim;
+  }
   getTextSize() { return this.state.anim.textSize || 48; }
 
   draw() {
@@ -1058,6 +1069,91 @@ class RotatingTypography extends BaseAnimation {
 }
 
 /* =====================================================
+   11. PIXEL TEXTURE — Ruido de píxeles con CONVOCATORIA ABIERTA flotando
+   El texto deriva suavemente sobre una textura de noise animado.
+   Mouse → los píxeles más cercanos se intensifican.
+   ===================================================== */
+class PixelTexture extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.t          = 0;
+    this.chars      = [];
+    this.noiseOff   = [];
+    this.pixelSize  = 10;
+    this.reset();
+  }
+
+  reset() {
+    const b  = this.getBounds();
+    const sz = this.getTextSize();
+    this.p.randomSeed(this.state.anim.seed);
+    this.t         = 0;
+    this.pixelSize = Math.max(6, Math.round(sz * 0.19));
+    const layout   = getMessageLayout(b, sz);
+    this.chars     = MESSAGE_CHARS.map((char, i) => ({
+      x:     layout[i].tx,
+      y:     layout[i].ty,
+      char,
+      phase: this.p.random(Math.PI * 2),
+      word:  layout[i].word
+    }));
+    this.noiseOff = MESSAGE_CHARS.map(() => ({
+      ox: this.p.random(1000),
+      oy: this.p.random(1000)
+    }));
+  }
+
+  advanceState() {
+    this.t += 0.013 * this.state.anim.speed;
+  }
+
+  render() {
+    const p        = this.p;
+    const [r,g,b_] = this.getAnimRgb();
+    const ctx      = p.drawingContext;
+    const px       = this.pixelSize;
+    const sz       = this.getTextSize();
+    const t        = this.t;
+
+    // ── Pixel noise grid ──
+    const cols = Math.ceil(CANVAS_W / px) + 1;
+    const rows = Math.ceil(CANVAS_H / px) + 1;
+    for (let iy = 0; iy < rows; iy++) {
+      for (let ix = 0; ix < cols; ix++) {
+        const wx  = ix * px;
+        const wy  = iy * px;
+        // Mouse proximity boosts nearby pixels
+        const mdx = wx - this.mx, mdy = wy - this.my;
+        const md  = Math.sqrt(mdx * mdx + mdy * mdy);
+        const mBoost = md < 120 ? (1 - md / 120) * 0.4 : 0;
+        const n   = p.noise(ix * 0.07 + t * 0.11, iy * 0.07 - t * 0.09, t * 0.18);
+        const raw = (n - 0.3) * 1.8 + mBoost;
+        if (raw < 0.05) continue;
+        const a = Math.min(0.6, raw * 0.6);
+        ctx.fillStyle = `rgba(${r},${g},${b_},${a.toFixed(3)})`;
+        ctx.fillRect(wx, wy, px - 1, px - 1);
+      }
+    }
+
+    // ── CONVOCATORIA ABIERTA letters drifting on noise ──
+    ctx.font         = getFont(this.state, sz * 0.94);
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < this.chars.length; i++) {
+      const c  = this.chars[i];
+      const no = this.noiseOff[i];
+      const dx = (p.noise(no.ox + t * 0.38) - 0.5) * 22;
+      const dy = (p.noise(no.oy + t * 0.38) - 0.5) * 22;
+      const pulse = 0.6 + 0.4 * Math.sin(t * 2.0 + c.phase);
+      // Each word gets a slightly different hue shift via alpha
+      const wordA = c.word === 0 ? pulse : 0.55 + 0.45 * Math.sin(t * 1.6 + c.phase + 1.2);
+      ctx.fillStyle = `rgba(${r},${g},${b_},${wordA.toFixed(3)})`;
+      ctx.fillText(c.char, c.x + dx, c.y + dy);
+    }
+  }
+}
+
+/* =====================================================
    REGISTRO DE ANIMACIONES
    ===================================================== */
 const ANIMATIONS = {
@@ -1070,5 +1166,6 @@ const ANIMATIONS = {
   'code-rain':            CodeRain,
   'constellation':        Constellation,
   'elastic-mesh':         ElasticMesh,
-  'rotating-typography':  RotatingTypography
+  'rotating-typography':  RotatingTypography,
+  'pixel-texture':        PixelTexture
 };

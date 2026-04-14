@@ -23,6 +23,7 @@ const COLOR_PRESETS = [
    Verificadas programáticamente — las que fallen se excluyen.
    ===================================================== */
 const WCAG_PALETTES_DEF = [
+  // ── Clásicos ──
   { name: 'Clásico',         bg: '#FFFFFF', fg: '#000000' },
   { name: 'Invertido',       bg: '#000000', fg: '#FFFFFF' },
   { name: 'Azul Processing', bg: '#0033FF', fg: '#FFFFFF' },
@@ -33,6 +34,24 @@ const WCAG_PALETTES_DEF = [
   { name: 'Papel',           bg: '#F5F0E8', fg: '#1A1A1A' },
   { name: 'Rojo alerta',     bg: '#FFE500', fg: '#000000' },
   { name: 'Ciberpunk',       bg: '#0A0A14', fg: '#00FFEE' },
+  // ── Fluor ──
+  { name: 'Fluor Lima',      bg: '#0D0D0D', fg: '#C6FF00' },
+  { name: 'Fluor Cyan',      bg: '#0D0D0D', fg: '#00FFD4' },
+  { name: 'Fluor Rosa',      bg: '#0D0D0D', fg: '#FF70E0' },
+  { name: 'Fluor Naranja',   bg: '#111111', fg: '#FF9500' },
+  { name: 'Fluor Violeta',   bg: '#0D0D0D', fg: '#C280FF' },
+  { name: 'Fluor Rojo',      bg: '#0D0D0D', fg: '#FF3C3C' },
+  { name: 'Night Neon',      bg: '#050510', fg: '#7FFF00' },
+  { name: 'Tokyo Night',     bg: '#13131F', fg: '#40E0FF' },
+  // ── Pasteles ──
+  { name: 'Lavanda',         bg: '#EDE0FF', fg: '#2E0080' },
+  { name: 'Menta',           bg: '#D8FFF0', fg: '#004830' },
+  { name: 'Melocotón',       bg: '#FFF0E6', fg: '#6B2500' },
+  { name: 'Cielo',           bg: '#D8F0FF', fg: '#003070' },
+  { name: 'Rosa polvo',      bg: '#FFE8F5', fg: '#6B0038' },
+  { name: 'Crema',           bg: '#FFFBE6', fg: '#3D2B00' },
+  { name: 'Sage',            bg: '#E8F5E9', fg: '#1B3A21' },
+  { name: 'Coral',           bg: '#FFF0EE', fg: '#7A1A0A' },
 ];
 // Populated after WCAG functions are defined (see bottom of file)
 let WCAG_PALETTES = [];
@@ -85,10 +104,10 @@ const state = {
 
   infoBlock: {
     font:          'Space Mono',
-    size:          19,
-    weight:        'regular',
+    size:          22,
+    weight:        'bold',
     letterSpacing: 0,
-    lineHeight:    1.55,
+    lineHeight:    1.5,
     alignH:        'left'
   },
 
@@ -115,13 +134,16 @@ const state = {
   },
 
   anim: {
-    current:    'letter-physics',
-    speed:      2.0,
-    fps:        30,
-    opacity:    80,
-    seed:       42,
-    textSize:   48,
-    fullCanvas: true,
+    current:     'letter-physics',
+    speed:       2.0,
+    fps:         30,
+    opacity:     80,
+    seed:        42,
+    textSize:    48,
+    fullCanvas:  true,
+    font:        'Space Mono',
+    fontWeight:  '700',
+    blendMode:   'source-over',
     params: {
       'letter-physics': {
         text:       'CONVOCATORIA ABIERTA',
@@ -238,7 +260,9 @@ const sketch = (p) => {
       p.push();
       const opa = (state.anim.opacity / 100) * fadeOpacity;
       p.drawingContext.globalAlpha = Math.max(0, Math.min(1, opa));
+      p.drawingContext.globalCompositeOperation = state.anim.blendMode || 'source-over';
       currentAnimation.draw();
+      p.drawingContext.globalCompositeOperation = 'source-over';
       p.drawingContext.globalAlpha = 1;
       p.pop();
     }
@@ -571,7 +595,7 @@ function drawInfoBlock(p) {
 
     let y = cell.y + size + pad;
 
-    p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.35)`;
+    p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.55)`;
     p.drawingContext.fillText('[', x, y);
     y += lh;
 
@@ -586,7 +610,7 @@ function drawInfoBlock(p) {
         const keyStr  = '  ' + keyPart;
         const keyW    = p.drawingContext.measureText(keyStr).width;
 
-        p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.35)`;
+        p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.65)`;
         if (alignH === 'left') {
           p.drawingContext.fillText(keyStr, x, y);
         }
@@ -595,7 +619,7 @@ function drawInfoBlock(p) {
         const valMaxW = (alignH === 'left') ? maxW - keyW : maxW;
         const valLines = wrapText(p, valPart, valMaxW);
 
-        p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.85)`;
+        p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},1.0)`;
         for (let li = 0; li < valLines.length; li++) {
           if (li === 0 && alignH === 'left') {
             p.drawingContext.fillText(valLines[li], valX, y);
@@ -607,7 +631,7 @@ function drawInfoBlock(p) {
       } else {
         const fullLine = '  "' + line + '"' + (isLast ? '' : ',');
         const wrapped  = wrapText(p, fullLine, maxW);
-        p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.85)`;
+        p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},1.0)`;
         for (const wl of wrapped) {
           p.drawingContext.fillText(wl, x, y);
           y += lh;
@@ -615,7 +639,7 @@ function drawInfoBlock(p) {
       }
     }
 
-    p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.35)`;
+    p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.55)`;
     p.drawingContext.fillText(']', x, y);
 
     p.drawingContext.letterSpacing = '0px';
@@ -824,16 +848,19 @@ function buildWcagSwatches() {
 }
 
 function applyWcagPalette(palette) {
-  state.preset.bg = palette.bg;
-  state.preset.fg = palette.fg;
-  lastValidBg     = palette.bg;
-  lastValidFg     = palette.fg;
-  const posterBg = document.getElementById('poster-bg');
-  const posterFg = document.getElementById('poster-fg');
-  const bgPicker = document.getElementById('bg-color');
-  if (posterBg) posterBg.value = palette.bg;
-  if (posterFg) posterFg.value = palette.fg;
-  if (bgPicker) bgPicker.value = palette.bg;
+  state.preset.bg        = palette.bg;
+  state.preset.fg        = palette.fg;
+  state.preset.animColor = palette.fg;   // animaciones usan el fg de la paleta
+  lastValidBg            = palette.bg;
+  lastValidFg            = palette.fg;
+  const posterBg  = document.getElementById('poster-bg');
+  const posterFg  = document.getElementById('poster-fg');
+  const bgPicker  = document.getElementById('bg-color');
+  const animPicker = document.getElementById('bubble-bg-color');
+  if (posterBg)  posterBg.value  = palette.bg;
+  if (posterFg)  posterFg.value  = palette.fg;
+  if (bgPicker)  bgPicker.value  = palette.bg;
+  if (animPicker) animPicker.value = palette.fg;
   updateContrastUI();
   if (['flow-field', 'code-rain'].includes(state.anim.current) && currentAnimation) {
     currentAnimation.reset();
@@ -1002,8 +1029,11 @@ function bindControls() {
     const newFg      = e.target.value;
     const autoAdjust = document.getElementById('auto-contrast')?.checked;
     if (meetsAA(state.preset.bg, newFg)) {
-      state.preset.fg = newFg;
-      lastValidFg     = newFg;
+      state.preset.fg        = newFg;
+      state.preset.animColor = newFg;   // sync animaciones con nuevo fg
+      lastValidFg            = newFg;
+      const animPicker = document.getElementById('bubble-bg-color');
+      if (animPicker) animPicker.value = newFg;
       hideContrastError();
     } else if (autoAdjust) {
       const adjustedBg = adjustColorForContrast(state.preset.bg, newFg);
@@ -1027,6 +1057,11 @@ function bindControls() {
 
   // ——— Animación ———
   onChange('anim-select', e => { switchAnimation(e.target.value); });
+  onChange('anim-blend',  e => { state.anim.blendMode = e.target.value; });
+  onChange('anim-font',   e => {
+    state.anim.font = e.target.value;
+    if (currentAnimation) currentAnimation.reset();
+  });
   slider('anim-speed', 'anim-speed-val', v => { state.anim.speed = v; }, 0.1, 1);
   slider('anim-text-size', 'anim-text-size-val', v => {
     state.anim.textSize = Math.round(v);
