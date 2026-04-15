@@ -11,11 +11,11 @@ const CANVAS_H = 1350;
 const MARGIN   = 40;
 
 const ZONES = {
-  topBar:    { y: 0,    h: 40  },
-  json:      { y: 40,   h: 280 },
-  anim:      { y: 320,  h: 710 },
-  title:     { y: 1030, h: 280 },
-  bottomBar: { y: 1310, h: 40  }
+  topBar:    { y: 0,    h: 40   },
+  json:      { y: 40,   h: 635  },
+  anim:      { y: 620,  h: 212  },  // fila 3 del grid — espacio en blanco entre info y título
+  title:     { y: 887,  h: 423  },
+  bottomBar: { y: 1310, h: 40   }
 };
 
 /* =====================================================
@@ -120,6 +120,12 @@ class BaseAnimation {
     return { x: 0, y: ZONES.anim.y, w: CANVAS_W, h: ZONES.anim.h };
   }
 
+  // Siempre devuelve el hueco en blanco entre info y título,
+  // independientemente de fullCanvas. Se usa para centrar posiciones target.
+  getAnimZone() {
+    return { x: 0, y: ZONES.anim.y, w: CANVAS_W, h: ZONES.anim.h };
+  }
+
   getFg()      { return hexToRgb(this.state.preset.fg); }
   getBg()      { return hexToRgb(this.state.preset.bg); }
   getAnimRgb() {
@@ -163,17 +169,22 @@ class LetterPhysics extends BaseAnimation {
   reset() {
     const params = this.state.anim.params['letter-physics'];
     const r  = params.circleSize;
-    const b  = this.getBounds();
     const sz = this.getTextSize();
     this.p.randomSeed(this.state.anim.seed);
-    const layout = getMessageLayout(b, sz);
-    this.noiseZ  = 0;
+    const layout = getMessageLayout(this.getAnimZone(), sz);
+    this.noiseZ   = 0;
     this.snapMode = false;
+
+    // Typewriter intro state
+    this.phase   = 'typewriter'; // 'typewriter' | 'physics'
+    this.twIdx   = 0;            // número de letras reveladas
+    this.twTimer = 0;            // frame counter dentro de la fase
+
     this.circles = MESSAGE_CHARS.map((char, i) => ({
-      x:    this.p.random(b.x + r*2, b.x + b.w - r*2),
-      y:    this.p.random(b.y + r*2, b.y + b.h - r*2),
-      vx:   this.p.random(-3, 3),
-      vy:   this.p.random(-3, 3),
+      x:    layout[i].tx,
+      y:    layout[i].ty,
+      vx:   0,
+      vy:   0,
       r,
       char,
       tx:   layout[i].tx,
@@ -189,6 +200,33 @@ class LetterPhysics extends BaseAnimation {
     const fric = params.friction;
     const maxV = 4 * spd;
     this.noiseZ += 0.006 * spd;
+
+    // ── Fase typewriter ──────────────────────────────────────────
+    if (this.phase === 'typewriter') {
+      this.twTimer++;
+      const twDelay  = Math.max(3, Math.round(9 / spd));   // frames por letra
+      const pauseDur = Math.max(30, Math.round(90 / spd));  // frames de pausa al final
+
+      if (this.twIdx < this.circles.length) {
+        // Revelar siguiente letra
+        if (this.twTimer >= twDelay) {
+          this.twIdx++;
+          this.twTimer = 0;
+        }
+      } else {
+        // Todas reveladas → esperar y luego lanzar física
+        if (this.twTimer >= pauseDur) {
+          this.phase = 'physics';
+          this.p.randomSeed(this.state.anim.seed + 99);
+          for (const c of this.circles) {
+            c.vx = this.p.random(-2, 2);
+            c.vy = this.p.random(-2, 2);
+          }
+        }
+      }
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────
 
     if (this.snapMode) {
       this.snapT += 0.05 * spd;
@@ -231,6 +269,52 @@ class LetterPhysics extends BaseAnimation {
   render() {
     const ctx     = this.p.drawingContext;
     const [r,g,b] = this.getAnimRgb();
+
+    if (this.phase === 'typewriter') {
+      // Solo letras ya reveladas
+      for (let i = 0; i < this.twIdx; i++) {
+        const c = this.circles[i];
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
+        ctx.fillStyle   = `rgba(${r},${g},${b},0.12)`;
+        ctx.strokeStyle = `rgba(${r},${g},${b},0.7)`;
+        ctx.lineWidth   = 1.5;
+        ctx.fill();
+        ctx.stroke();
+        ctx.font         = getFont(this.state, Math.round(c.r * 0.88));
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle    = `rgba(${r},${g},${b},1)`;
+        ctx.fillText(c.char, c.x, c.y);
+        ctx.restore();
+      }
+
+      // Cursor parpadeante en la posición de la siguiente letra
+      if (this.twIdx < this.circles.length) {
+        const nc    = this.circles[this.twIdx];
+        const blink = Math.floor(this.p.frameCount / 12) % 2 === 0;
+        if (blink) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(nc.x, nc.y, nc.r, 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(${r},${g},${b},0.35)`;
+          ctx.lineWidth   = 1;
+          ctx.setLineDash([4, 4]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          // Punto central
+          ctx.beginPath();
+          ctx.arc(nc.x, nc.y, nc.r * 0.12, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(${r},${g},${b},0.9)`;
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+      return;
+    }
+
+    // Fase physics — render normal
     for (const c of this.circles) {
       ctx.save();
       ctx.beginPath();
@@ -276,7 +360,7 @@ class ParticleNetwork extends BaseAnimation {
     const b  = this.getBounds();
     const sz = this.getTextSize();
     this.p.randomSeed(this.state.anim.seed);
-    const layout = getMessageLayout(b, sz);
+    const layout = getMessageLayout(this.getAnimZone(), sz);
     this.particles = MESSAGE_CHARS.map((char, i) => ({
       x:    this.p.random(b.x, b.x + b.w),
       y:    this.p.random(b.y, b.y + b.h),
@@ -384,7 +468,7 @@ class FlowField extends BaseAnimation {
     const b  = this.getBounds();
     const sz = this.getTextSize();
     this.p.randomSeed(this.state.anim.seed);
-    const layout = getMessageLayout(b, sz);
+    const layout = getMessageLayout(this.getAnimZone(), sz);
     this.particles = MESSAGE_CHARS.map((char, i) => ({
       x:    this.p.random(b.x, b.x + b.w),
       y:    this.p.random(b.y, b.y + b.h),
@@ -834,10 +918,9 @@ class Constellation extends BaseAnimation {
 
   reset() {
     const params = this.state.anim.params['constellation'];
-    const b      = this.getBounds();
     const sz     = this.getTextSize();
     this.p.randomSeed(this.state.anim.seed);
-    const layout = getMessageLayout(b, sz);
+    const layout = getMessageLayout(this.getAnimZone(), sz);
     this.stars = MESSAGE_CHARS.map((char, i) => {
       const tgt   = layout[i];
       const angle = this.p.random(this.p.TWO_PI);
@@ -924,9 +1007,8 @@ class ElasticMesh extends BaseAnimation {
 
   reset() {
     const params = this.state.anim.params['elastic-mesh'];
-    const b      = this.getBounds();
     const sz     = this.getTextSize();
-    const layout = getMessageLayout(b, sz);
+    const layout = getMessageLayout(this.getAnimZone(), sz);
     this.nodes   = MESSAGE_CHARS.map((char, i) => {
       const tgt = layout[i];
       return {
@@ -1024,10 +1106,9 @@ class RotatingTypography extends BaseAnimation {
 
   reset() {
     const params = this.state.anim.params['rotating-typography'];
-    const b      = this.getBounds();
     const sz     = this.getTextSize();
     this.p.randomSeed(this.state.anim.seed);
-    const layout = getMessageLayout(b, sz);
+    const layout = getMessageLayout(this.getAnimZone(), sz);
     this.letters = MESSAGE_CHARS.map((char, i) => {
       const tgt  = layout[i];
       const rotV = (this.p.random(-0.04, 0.04) + (Math.random() > 0.5 ? 0.012 : -0.012)) * params.speed;

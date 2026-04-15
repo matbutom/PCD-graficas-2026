@@ -62,12 +62,13 @@ let WCAG_PALETTES = [];
 const TITLE_LINES = ['/*PROCESSING', '/*COMMUNITY', '/*DAY — 2026'];
 
 const INFO_LINES = [
-  'Evento: Processing community day, Convocatoria abierta',
+  'Evento: Processing Community Day',
+  'Postula: Proyectos de programación creativa e interacción digital',
   'Lugar: Salvador Sanfuentes 2221',
-  'Descripcion: Sé parte del evento que busca visibilizar prácticas emergentes, conectar comunidad, academia e industria y generar un espacio de encuentro en torno al uso creativo del código.',
+  'Descripción: Sé parte del evento que busca visibilizar prácticas emergentes, conectar comunidad, academia e industria y generar un espacio de encuentro en torno al uso creativo del código.',
   'Llamado a: Estudiantes pre/postgrado, Investigadores, Creadores, Equipos interdisciplinarios',
-  'Apertura convocatoria: 17.04.2026',
-  'Cierre convocatoria: [Por definir]'
+  'Fecha apertura convocatoria: 17 Abril 2026',
+  'Fecha cierre convocatoria: 12 Mayo 2026'
 ];
 
 /* =====================================================
@@ -75,7 +76,7 @@ const INFO_LINES = [
    ===================================================== */
 const DEFAULT_LAYOUT = {
   title: { colStart: 0, colSpan: 3, rowStart: 4, rowSpan: 2 },
-  info:  { colStart: 0, colSpan: 3, rowStart: 0, rowSpan: 4 }
+  info:  { colStart: 0, colSpan: 3, rowStart: 0, rowSpan: 3 }
 };
 
 /* =====================================================
@@ -428,10 +429,104 @@ function resetLayout() {
 }
 
 /* =====================================================
+   LOGOS — Carga y render
+   ===================================================== */
+const LOGOS_H   = 120;  // altura en px del canvas
+const LOGO_ORDER = ['faaad', 'LID', 'crtic', 'processingFoundation'];
+
+let _logosSvgText  = {};
+let _logosImgCache = {};
+
+async function initLogos() {
+  for (const name of LOGO_ORDER) {
+    try {
+      const r = await fetch(`assets/${name}.svg`);
+      _logosSvgText[name] = await r.text();
+    } catch(e) {
+      console.warn('Logo no cargado:', name, e);
+    }
+  }
+  _buildLogoImg('processingFoundation', null);
+  const fg = state.preset.fg;
+  for (const name of ['LID', 'crtic', 'faaad']) {
+    _buildLogoImg(name, fg);
+  }
+}
+
+function _buildLogoImg(name, fillColor) {
+  if (!_logosSvgText[name]) return;
+  let svg = _logosSvgText[name];
+  if (fillColor) {
+    svg = svg.replace(/(<svg\b[^>]*)>/, `$1 fill="${fillColor}">`);
+  }
+  const prev = _logosImgCache[name];
+  if (prev && prev._url) URL.revokeObjectURL(prev._url);
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  const url  = URL.createObjectURL(blob);
+  const img  = new Image();
+  img._url   = url;
+  img.src    = url;
+  _logosImgCache[name] = { img, color: fillColor, _url: url };
+}
+
+function drawLogos(p) {
+  const m   = state.layout.margin;
+  const fg  = state.preset.fg;
+
+  // Regenerar logos dinámicos si cambió el color fg
+  for (const name of ['LID', 'crtic', 'faaad']) {
+    const cached = _logosImgCache[name];
+    if (!cached || cached.color !== fg) _buildLogoImg(name, fg);
+  }
+
+  const ctx    = p.drawingContext;
+  const pad    = 14;                      // margen vertical arriba y abajo
+  const hPad   = -60;                      // margen lateral extra izquierda y derecha
+  const logoH  = LOGOS_H - 2 * pad;      // todos los logos a la misma altura
+  const totalW = CANVAS_W - 2 * m - 2 * hPad;  // ancho disponible con margen lateral
+
+  // Escala individual por logo (1.0 = altura completa)
+  const LOGO_SCALE = {
+    faaad:                0.80,
+    LID:                  0.80,
+    crtic:                1.0,
+    processingFoundation: 1.0
+  };
+
+  // Calcular dimensiones de cada logo a su altura escalada, centrado verticalmente
+  const logoData = LOGO_ORDER.map(name => {
+    const c = _logosImgCache[name];
+    if (!c || !c.img.complete || c.img.naturalWidth === 0) return { w: 0, h: 0, yOff: 0 };
+    const scale  = LOGO_SCALE[name] ?? 1.0;
+    const h      = logoH * scale;
+    const w      = h * (c.img.naturalWidth / c.img.naturalHeight);
+    const yOff   = (logoH - h) / 2;  // centrado vertical dentro del strip
+    return { w, h, yOff };
+  });
+
+  const totalLogosW = logoData.reduce((a, d) => a + d.w, 0);
+  const nGaps = LOGO_ORDER.length + 1;
+  const gap   = Math.max(pad, (totalW - totalLogosW) / nGaps);
+
+  const iyBase = m + pad;
+  let x = m + hPad + gap;
+
+  for (let i = 0; i < LOGO_ORDER.length; i++) {
+    const c = _logosImgCache[LOGO_ORDER[i]];
+    const d = logoData[i];
+    if (c && c.img.complete && c.img.naturalWidth > 0 && d.w > 0) {
+      ctx.drawImage(c.img, x, iyBase + d.yOff, d.w, d.h);
+    }
+    x += d.w + gap;
+  }
+}
+
+/* =====================================================
    RENDER EDITORIAL
    ===================================================== */
 function drawEditorialContent(p) {
   if (state.grid.show) drawGrid(p);
+  drawLogos(p);
   drawInfoBlock(p);
   drawTitle(p);
   if (state.showGuides) drawGuides(p);
@@ -593,7 +688,7 @@ function drawInfoBlock(p) {
     }
     p.drawingContext.textAlign = align;
 
-    let y = cell.y + size + pad;
+    let y = cell.y + LOGOS_H + pad + size;
 
     p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.55)`;
     p.drawingContext.fillText('[', x, y);
@@ -1166,6 +1261,9 @@ function exportVideo() {
     state.playing = wasPlay;
   };
 
+  // Reiniciar animación desde el principio antes de grabar
+  if (currentAnimation) currentAnimation.reset();
+
   showProgress(true, 'Grabando...');
   rec.start();
   let elapsed = 0;
@@ -1201,6 +1299,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Filtrar paletas WCAG programáticamente (excluye cualquiera que no cumpla 4.5:1)
   WCAG_PALETTES = WCAG_PALETTES_DEF.filter(p => meetsAA(p.bg, p.fg));
 
+  initLogos();
   p5Instance = new p5(sketch);
   setTimeout(resizeCanvasWrapper, 80);
   bindControls();
