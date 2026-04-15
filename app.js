@@ -446,19 +446,42 @@ async function initLogos() {
       console.warn('Logo no cargado:', name, e);
     }
   }
-  _buildLogoImg('processingFoundation', null);
   const fg = state.preset.fg;
-  for (const name of ['LID', 'crtic', 'faaad']) {
+  for (const name of LOGO_ORDER) {
     _buildLogoImg(name, fg);
   }
 }
 
+// Colores originales del logo Processing y su luminancia perceptual
+const _PROCESSING_COLORS = [
+  { from: '#d4b2fe', L: 0.771 },   // cls-1 — lavanda claro
+  { from: '#5501a4', L: 0.174 },   // cls-2 — púrpura oscuro
+  { from: '#9c4bff', L: 0.469 },   // cls-3 — púrpura medio
+];
+
 function _buildLogoImg(name, fillColor) {
   if (!_logosSvgText[name]) return;
   let svg = _logosSvgText[name];
+
   if (fillColor) {
-    svg = svg.replace(/(<svg\b[^>]*)>/, `$1 fill="${fillColor}">`);
+    if (name === 'processingFoundation') {
+      // Mapear cada color original → mezcla de fg/bg preservando luminancia
+      // color_nuevo = bg × L + fg × (1 − L)
+      // → claro sigue claro, oscuro sigue oscuro, pero con los colores del tema
+      const fg = hexRgb(fillColor);
+      const bg = hexRgb(state.preset.bg);
+      for (const { from, L } of _PROCESSING_COLORS) {
+        const r = Math.round(bg[0] * L + fg[0] * (1 - L));
+        const g = Math.round(bg[1] * L + fg[1] * (1 - L));
+        const b = Math.round(bg[2] * L + fg[2] * (1 - L));
+        const to = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+        svg = svg.replaceAll(from, to);
+      }
+    } else {
+      svg = svg.replace(/(<svg\b[^>]*)>/, `$1 fill="${fillColor}">`);
+    }
   }
+
   const prev = _logosImgCache[name];
   if (prev && prev._url) URL.revokeObjectURL(prev._url);
   const blob = new Blob([svg], { type: 'image/svg+xml' });
@@ -466,17 +489,19 @@ function _buildLogoImg(name, fillColor) {
   const img  = new Image();
   img._url   = url;
   img.src    = url;
-  _logosImgCache[name] = { img, color: fillColor, _url: url };
+  _logosImgCache[name] = { img, color: fillColor, bg: state.preset.bg, _url: url };
 }
 
 function drawLogos(p) {
   const m   = state.layout.margin;
   const fg  = state.preset.fg;
 
-  // Regenerar logos dinámicos si cambió el color fg
-  for (const name of ['LID', 'crtic', 'faaad']) {
-    const cached = _logosImgCache[name];
-    if (!cached || cached.color !== fg) _buildLogoImg(name, fg);
+  // Regenerar logos si cambiaron fg o bg
+  const bg = state.preset.bg;
+  for (const name of LOGO_ORDER) {
+    const c = _logosImgCache[name];
+    const stale = !c || c.color !== fg || (name === 'processingFoundation' && c.bg !== bg);
+    if (stale) _buildLogoImg(name, fg);
   }
 
   const ctx    = p.drawingContext;
