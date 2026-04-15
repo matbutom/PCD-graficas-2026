@@ -47,6 +47,22 @@
     <aside id="sidebar">
       <div id="sidebar-inner">
 
+        <!-- ——— 0. FORMATO ——— -->
+        <details class="section" open>
+          <summary class="section-header">
+            <span>Formato</span>
+            <svg class="chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <div class="section-body">
+            <div class="sub-group">
+              <select id="format-select" class="select-input select-full">
+                <option value="ig">Instagram — 1080×1350</option>
+                <option value="banner">Banner — 1334×400</option>
+              </select>
+            </div>
+          </div>
+        </details>
+
         <!-- ——— 1. LAYOUT Y GRILLA ——— -->
         <details class="section" open>
           <summary class="section-header">
@@ -267,7 +283,7 @@
             <div class="sub-group">
               <div class="ctrl-row info-row">
                 <span class="label-muted">Resolución</span>
-                <span class="val-badge">1080 × 1350 px</span>
+                <span class="val-badge" id="res-badge">1080 × 1350 px</span>
               </div>
             </div>
             <div class="sub-group">

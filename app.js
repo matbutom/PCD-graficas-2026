@@ -3,6 +3,14 @@
    ===================================================== */
 
 /* =====================================================
+   CONSTANTES DE FORMATO
+   ===================================================== */
+const IG_W     = 1080;
+const IG_H     = 1350;
+const BANNER_W = 1334;
+const BANNER_H = 400;
+
+/* =====================================================
    PRESETS DE COLOR
    ===================================================== */
 const COLOR_PRESETS = [
@@ -212,7 +220,8 @@ const state = {
   },
 
   showGuides: false,
-  playing:    true
+  playing:    true,
+  format:     'ig'
 };
 
 // Últimos colores válidos (usados para revertir cambios que rompen WCAG AA)
@@ -268,7 +277,11 @@ const sketch = (p) => {
       p.pop();
     }
 
-    drawEditorialContent(p);
+    if (state.format === 'banner') {
+      drawBannerContent(p);
+    } else {
+      drawEditorialContent(p);
+    }
 
     if (fadingOut || fadingIn) tickFade(p);
   };
@@ -555,6 +568,141 @@ function drawEditorialContent(p) {
   drawInfoBlock(p);
   drawTitle(p);
   if (state.showGuides) drawGuides(p);
+}
+
+/* =====================================================
+   BANNER CONTENT
+   ===================================================== */
+function drawBannerContent(p) {
+  if (state.grid.show) drawGrid(p);
+  drawBannerTopBar(p);
+  drawBannerLogos(p);
+  drawBannerTitle(p);
+  if (state.showGuides) drawGuides(p);
+}
+
+function drawBannerTopBar(p) {
+  const barH = 28;
+  const m    = state.layout.margin;
+  const [bR, bG, bB] = hexRgb(state.preset.bg);
+  const [fR, fG, fB] = hexRgb(state.preset.fg);
+  p.push();
+  p.noStroke();
+  p.fill(bR, bG, bB, 200);
+  p.rect(0, 0, CANVAS_W, barH);
+  p.stroke(fR, fG, fB, 60);
+  p.strokeWeight(0.5);
+  p.line(m, barH - 1, CANVAS_W - m, barH - 1);
+  p.noStroke();
+  p.drawingContext.font         = `400 9px 'Space Mono', monospace`;
+  p.drawingContext.fillStyle    = `rgba(${fR},${fG},${fB},0.6)`;
+  p.drawingContext.textBaseline = 'middle';
+  p.drawingContext.textAlign    = 'left';
+  p.drawingContext.fillText(state.meta.topLeft,  m, barH / 2);
+  p.drawingContext.textAlign = 'right';
+  p.drawingContext.fillText(state.meta.topRight, CANVAS_W - m, barH / 2);
+  p.pop();
+}
+
+function drawBannerLogos(p) {
+  const m   = state.layout.margin;
+  const fg  = state.preset.fg;
+  const bg  = state.preset.bg;
+
+  // Regenerar si cambiaron colores
+  for (const name of LOGO_ORDER) {
+    const c     = _logosImgCache[name];
+    const stale = !c || c.color !== fg || (name === 'processingFoundation' && c.bg !== bg);
+    if (stale) _buildLogoImg(name, fg);
+  }
+
+  const ctx     = p.drawingContext;
+  const y0      = 28;             // debajo del top bar
+  const stripH  = 78;             // altura del strip de logos en banner
+  const pad     = 10;
+  const logoH   = stripH - 2 * pad;
+  const hPad    = -60;
+  const totalW  = CANVAS_W - 2 * m - 2 * hPad;
+
+  const LOGO_SCALE = { faaad: 0.80, LID: 0.80, crtic: 1.0, processingFoundation: 1.0 };
+
+  const logoData = LOGO_ORDER.map(name => {
+    const c = _logosImgCache[name];
+    if (!c || !c.img.complete || c.img.naturalWidth === 0) return { w: 0, h: 0, yOff: 0 };
+    const scale = LOGO_SCALE[name] ?? 1.0;
+    const h     = logoH * scale;
+    const w     = h * (c.img.naturalWidth / c.img.naturalHeight);
+    const yOff  = (logoH - h) / 2;
+    return { w, h, yOff };
+  });
+
+  const totalLogosW = logoData.reduce((a, d) => a + d.w, 0);
+  const nGaps = LOGO_ORDER.length + 1;
+  const gap   = Math.max(pad, (totalW - totalLogosW) / nGaps);
+
+  const iyBase = y0 + pad;
+  let x = m + hPad + gap;
+
+  for (let i = 0; i < LOGO_ORDER.length; i++) {
+    const c = _logosImgCache[LOGO_ORDER[i]];
+    const d = logoData[i];
+    if (c && c.img.complete && c.img.naturalWidth > 0 && d.w > 0) {
+      ctx.drawImage(c.img, x, iyBase + d.yOff, d.w, d.h);
+    }
+    x += d.w + gap;
+  }
+}
+
+function drawBannerTitle(p) {
+  const [fR, fG, fB] = hexRgb(state.preset.fg);
+  const m     = state.layout.margin;
+  const size  = 86;
+  const lh    = size * state.title.lineHeight;
+  const totalH = TITLE_LINES.length * lh;
+  const areaY = 106;                          // debajo del strip de logos
+  const areaH = CANVAS_H - areaY - 8;
+  const startY = areaY + Math.max(4, (areaH - totalH) / 2);
+  const x = m + 8;
+
+  p.noStroke();
+  p.drawingContext.font          = `700 ${size}px '${state.title.font}', monospace`;
+  p.drawingContext.letterSpacing = state.title.letterSpacing + 'px';
+  p.drawingContext.textBaseline  = 'top';
+  p.drawingContext.textAlign     = 'left';
+
+  for (let i = 0; i < TITLE_LINES.length; i++) {
+    const line  = TITLE_LINES[i];
+    const lineY = startY + i * lh;
+    if (line.startsWith('/*')) {
+      const prefix  = '/*';
+      const prefixW = p.drawingContext.measureText(prefix).width;
+      p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.3)`;
+      p.drawingContext.fillText(prefix, x, lineY);
+      p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},1)`;
+      p.drawingContext.fillText(line.slice(2), x + prefixW, lineY);
+    } else {
+      p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.9)`;
+      p.drawingContext.fillText(line, x, lineY);
+    }
+  }
+  p.drawingContext.letterSpacing = '0px';
+}
+
+/* =====================================================
+   FORMATO — Cambio IG ↔ Banner
+   ===================================================== */
+function switchFormat(fmt) {
+  if (fmt === state.format) return;
+  state.format = fmt;
+  const w = fmt === 'banner' ? BANNER_W : IG_W;
+  const h = fmt === 'banner' ? BANNER_H : IG_H;
+  setCanvasSize(w, h);
+  if (p5Instance) p5Instance.resizeCanvas(w, h);
+  state.meta.topLeft = `${w}×${h}`;
+  const resBadge = document.getElementById('res-badge');
+  if (resBadge) resBadge.textContent = `${w} × ${h} px`;
+  resizeCanvasWrapper();
+  if (currentAnimation) currentAnimation.reset();
 }
 
 function drawGrid(p) {
@@ -1081,6 +1229,9 @@ function bindControls() {
     });
   };
 
+  // ——— Formato ———
+  onChange('format-select', e => { switchFormat(e.target.value); });
+
   // ——— Layout y Grilla ———
   slider('margin-val',   'margin-disp',    v => { state.layout.margin = v; });
   onCheck('grid-show',   e => { state.grid.show = e.target.checked; });
@@ -1244,7 +1395,7 @@ function exportPNG() {
     const cv = document.querySelector('#canvas-container canvas');
     if (!cv) { showToast('Canvas no encontrado', 'error'); state.playing = wasPlay; return; }
     downloadDataURL(cv.toDataURL('image/png'), 'pcd2026.png');
-    showToast('PNG exportado 1080×1350', 'success');
+    showToast(`PNG exportado ${CANVAS_W}×${CANVAS_H}`, 'success');
     state.playing = wasPlay;
   }, 60);
 }

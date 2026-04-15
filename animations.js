@@ -6,8 +6,8 @@
 /* =====================================================
    CONSTANTES GLOBALES DE LAYOUT
    ===================================================== */
-const CANVAS_W = 1080;
-const CANVAS_H = 1350;
+let CANVAS_W = 1080;
+let CANVAS_H = 1350;
 const MARGIN   = 40;
 
 const ZONES = {
@@ -17,6 +17,9 @@ const ZONES = {
   title:     { y: 887,  h: 423  },
   bottomBar: { y: 1310, h: 40   }
 };
+
+// Llamado desde app.js al cambiar formato (IG ↔ Banner)
+function setCanvasSize(w, h) { CANVAS_W = w; CANVAS_H = h; }
 
 /* =====================================================
    CONSTANTES DEL MENSAJE
@@ -122,7 +125,13 @@ class BaseAnimation {
 
   // Siempre devuelve el hueco en blanco entre info y título,
   // independientemente de fullCanvas. Se usa para centrar posiciones target.
+  // En modo banner (canvas < zona anim) centra en el canvas.
   getAnimZone() {
+    if (CANVAS_H < ZONES.anim.y + ZONES.anim.h) {
+      const zH = Math.round(CANVAS_H * 0.55);
+      const zY = Math.round((CANVAS_H - zH) / 2);
+      return { x: 0, y: zY, w: CANVAS_W, h: zH };
+    }
     return { x: 0, y: ZONES.anim.y, w: CANVAS_W, h: ZONES.anim.h };
   }
 
