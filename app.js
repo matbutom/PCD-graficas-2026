@@ -9,20 +9,20 @@ const IG_W     = 1080;
 const IG_H     = 1350;
 const BANNER_W     = 1600;
 const BANNER_H     = 400;
-const BANNER_SPLIT = 960;   // x split: left text panel | right pixel grid
+const BANNER_SPLIT = 800;   // x split: left text panel | right pixel grid
 
 // 0=bg, 1=fg, 2=mid(35% fg blend) — 16 cols × 10 rows static grid
 const BANNER_GRID_PATTERN = [
-  [1,1,1,0,0,1,1,0,1,0,0,1,0,1,1,0],
-  [1,1,0,0,1,1,0,1,0,1,0,2,0,1,0,1],
-  [0,1,1,1,0,0,1,1,0,0,1,1,2,0,1,0],
-  [1,0,0,1,1,0,0,1,1,0,1,0,0,2,1,1],
-  [1,0,1,0,1,1,0,1,0,1,0,0,1,1,0,2],
-  [0,1,0,1,0,1,1,0,1,0,1,2,1,0,1,1],
-  [1,1,0,0,1,0,1,1,0,1,1,0,0,1,0,0],
-  [0,0,1,1,0,1,0,2,1,0,0,1,1,0,1,1],
-  [1,1,0,1,1,0,1,0,0,1,2,0,1,1,0,0],
-  [0,1,1,0,0,1,1,0,1,0,0,1,0,1,1,0],
+  [1,1,1,0,0,1,1,0,1,0,0,1,0,1,1,0, 1,0,1,0],
+  [1,1,0,0,1,1,0,1,0,1,0,2,0,1,0,1, 1,1,0,0],
+  [0,1,1,1,0,0,1,1,0,0,1,1,2,0,1,0, 0,1,1,0],
+  [1,0,0,1,1,0,0,1,1,0,1,0,0,2,1,1, 1,0,0,1],
+  [1,0,1,0,1,1,0,1,0,1,0,0,1,1,0,2, 1,0,1,1],
+  [0,1,0,1,0,1,1,0,1,0,1,2,1,0,1,1, 0,1,0,0],
+  [1,1,0,0,1,0,1,1,0,1,1,0,0,1,0,0, 1,1,0,1],
+  [0,0,1,1,0,1,0,2,1,0,0,1,1,0,1,1, 0,1,1,0],
+  [1,1,0,1,1,0,1,0,0,1,2,0,1,1,0,0, 1,0,0,1],
+  [0,1,1,0,0,1,1,0,1,0,0,1,0,1,1,0, 0,1,1,0],
 ];
 let _bannerGridData = null; // null = usa BANNER_GRID_PATTERN
 
@@ -83,7 +83,7 @@ let WCAG_PALETTES = [];
 /* =====================================================
    CONTENIDO FIJO
    ===================================================== */
-const TITLE_LINES = ['/*PROCESSING', '/*COMMUNITY', '/*DAY — 2026'];
+const TITLE_LINES = ['/*Processing', '/*Community', '/*Day — 2026'];
 
 const INFO_LINES = [
   'Evento: Processing Community Day',
@@ -119,16 +119,16 @@ const state = {
 
   // Tipografía fija — no configurable desde UI
   title: {
-    font:          'Space Mono',
-    size:          134,
+    font:          'workfaaad-b',
+    size:          146,
     weight:        'bold',
-    letterSpacing: -1,
+    letterSpacing: 0,
     lineHeight:    0.8,
-    alignH:        'left'
+    alignH:        'right'
   },
 
   infoBlock: {
-    font:          'Space Mono',
+    font:          'Necto Mono',
     size:          22,
     weight:        'bold',
     letterSpacing: 0,
@@ -632,21 +632,21 @@ function drawBannerPixelGrid(p) {
   const midG = Math.round(bgG * (1 - MID) + fgG * MID);
   const midB = Math.round(bgB * (1 - MID) + fgB * MID);
 
-  const grid  = _bannerGridData || BANNER_GRID_PATTERN;
-  const cols  = grid[0].length;
-  const rows  = grid.length;
-  const cellW = (CANVAS_W - BANNER_SPLIT) / cols;
-  const cellH = CANVAS_H / rows;
+  const grid      = _bannerGridData || BANNER_GRID_PATTERN;
+  const cols      = grid[0].length;
+  const rows      = grid.length;
+  const cell      = CANVAS_H / rows; // square cells
+  const skipRows  = 3; // bottom rows reserved for logos
 
   p.push();
   p.noStroke();
-  for (let r = 0; r < rows; r++) {
+  for (let r = 0; r < rows - skipRows; r++) {
     for (let c = 0; c < cols; c++) {
       const val = grid[r][c];
       if (val === 0) continue;
       if (val === 1) p.fill(fgR, fgG, fgB);
       else           p.fill(midR, midG, midB);
-      p.rect(BANNER_SPLIT + c * cellW, r * cellH, cellW + 0.5, cellH + 0.5);
+      p.rect(BANNER_SPLIT + c * cell, r * cell, cell + 0.5, cell + 0.5);
     }
   }
   p.pop();
@@ -655,7 +655,7 @@ function drawBannerPixelGrid(p) {
 function drawBannerDecorations(p) {
   const [fR, fG, fB] = hexRgb(state.preset.fg);
   const fontSize = 120;
-  const lh       = fontSize * state.title.lineHeight;
+  const lh       = fontSize * state.title.lineHeight * 1.4;
   const stripH   = 85;
   const totalH   = 3 * lh;
   const startY   = Math.max(20, (CANVAS_H - stripH - totalH) / 2);
@@ -687,11 +687,14 @@ function drawBannerLogos(p) {
   }
 
   const ctx    = p.drawingContext;
-  const stripH = 85;
+  const grid   = _bannerGridData || BANNER_GRID_PATTERN;
+  const cellH  = CANVAS_H / grid.length;
+  const stripH = 3 * cellH;
   const y0     = CANVAS_H - stripH;
-  const pad    = 8;
-  const logoH  = stripH - 2 * pad;
-  const availW = BANNER_SPLIT - 2 * m;
+  const pad    = 16;
+  const logoH  = stripH * 0.6;
+  const xStart = BANNER_SPLIT;
+  const availW = CANVAS_W - xStart - m - pad;
 
   const LOGO_SCALE = { faaad: 0.80, LID: 0.80, crtic: 1.0, processingFoundation: 1.0 };
 
@@ -708,12 +711,12 @@ function drawBannerLogos(p) {
   const totalLogosW = logoData.reduce((a, d) => a + d.w, 0);
   const gap         = Math.max(pad, (availW - totalLogosW) / (LOGO_ORDER.length - 1));
 
-  let x = m;
+  let x = xStart;
   for (let i = 0; i < LOGO_ORDER.length; i++) {
     const c = _logosImgCache[LOGO_ORDER[i]];
     const d = logoData[i];
     if (c && c.img.complete && c.img.naturalWidth > 0 && d.w > 0) {
-      ctx.drawImage(c.img, x, y0 + pad + d.yOff, d.w, d.h);
+      ctx.drawImage(c.img, x, y0 + pad + d.yOff + 10, d.w, d.h);
     }
     x += d.w + gap;
   }
@@ -722,13 +725,13 @@ function drawBannerLogos(p) {
 function drawBannerTitle(p) {
   const [fR, fG, fB] = hexRgb(state.preset.fg);
   const m        = state.layout.margin;
-  const fontSize = 120;
-  const lh       = fontSize * state.title.lineHeight;
+  const fontSize = 115;
+  const lh       = fontSize * state.title.lineHeight * 1.4;
   const stripH   = 85;
   const totalH   = 3 * lh;
   const startY   = Math.max(20, (CANVAS_H - stripH - totalH) / 2);
-  const x        = 110; // after the /* decoration column (2 chars × ~45px + gap)
-  const lines    = ['PROCESSING', 'COMMUNITY', 'DAY \u2014 2026'];
+  const x        = 110;
+  const lines    = ['Processing', 'Community', 'Day \u2014 2026'];
 
   p.noStroke();
   p.drawingContext.font          = `700 ${fontSize}px '${state.title.font}', monospace`;
@@ -801,7 +804,7 @@ function drawTopBar(p) {
   p.line(m, h - 1, CANVAS_W - m, h - 1);
 
   p.noStroke();
-  p.drawingContext.font         = `400 11px 'Space Mono', monospace`;
+  p.drawingContext.font         = `400 11px 'Necto Mono', monospace`;
   p.drawingContext.fillStyle    = `rgba(${fR},${fG},${fB},0.6)`;
   p.drawingContext.textBaseline = 'middle';
   p.drawingContext.textAlign    = 'left';
@@ -828,7 +831,7 @@ function drawBottomBar(p) {
   p.line(m, y + 1, CANVAS_W - m, y + 1);
 
   p.noStroke();
-  p.drawingContext.font         = `400 11px 'Space Mono', monospace`;
+  p.drawingContext.font         = `400 11px 'Necto Mono', monospace`;
   p.drawingContext.fillStyle    = `rgba(${fR},${fG},${fB},0.6)`;
   p.drawingContext.textBaseline = 'middle';
   p.drawingContext.textAlign    = 'left';
@@ -839,7 +842,7 @@ function drawBottomBar(p) {
 }
 
 function drawTitle(p) {
-  const { font, size, weight, letterSpacing, lineHeight, alignH } = state.title;
+  const { font, size, weight, lineHeight, alignH } = state.title;
   const b    = state.layout.blocks.title;
   const cell = getCellRect(b.colStart, b.rowStart, b.colSpan, b.rowSpan);
   const [fR, fG, fB] = hexRgb(state.preset.fg);
@@ -847,31 +850,24 @@ function drawTitle(p) {
   drawBlockInCell(p, cell, () => {
     const weightNum = weight === 'black' ? '900' : weight === 'bold' ? '700' : '400';
     const fontStr   = `${weightNum} ${size}px '${font}', monospace`;
-    const lh        = size * lineHeight;
+    const lh        = size * lineHeight * 1.2;
     const totalH    = TITLE_LINES.length * lh;
+    const x         = cell.x + 8;
+    const maxW      = cell.w - 16;
 
     p.noStroke();
     p.drawingContext.font          = fontStr;
-    p.drawingContext.letterSpacing = letterSpacing + 'px';
+    p.drawingContext.letterSpacing = '0px';
     p.drawingContext.textBaseline  = 'top';
+    p.drawingContext.textAlign     = 'left';
 
-    let x, align;
-    if (alignH === 'right') {
-      x = cell.x + cell.w - 8; align = 'right';
-    } else if (alignH === 'center') {
-      x = cell.x + cell.w / 2; align = 'center';
-    } else {
-      x = cell.x + 8; align = 'left';
-    }
-    p.drawingContext.textAlign = align;
-
-    const startY = cell.y + Math.max(8, (cell.h - totalH) / 2);
+    const startY = cell.y + Math.max(8, (cell.h - totalH) / 2) - 10;
 
     for (let i = 0; i < TITLE_LINES.length; i++) {
       const line  = TITLE_LINES[i];
       const lineY = startY + i * lh;
 
-      if (alignH === 'left' && line.startsWith('/*')) {
+      if (line.startsWith('/*')) {
         const prefix  = '/*';
         const prefixW = p.drawingContext.measureText(prefix).width;
         p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.3)`;
@@ -883,8 +879,6 @@ function drawTitle(p) {
         p.drawingContext.fillText(line, x, lineY);
       }
     }
-
-    p.drawingContext.letterSpacing = '0px';
   });
 }
 
