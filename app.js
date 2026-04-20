@@ -215,6 +215,17 @@ const state = {
         speed:        3.0,
         letterSize:   44,
         distribution: 'grid'
+      },
+      'glyph-flow-field': {
+        speed:         2.5,
+        particleSize:  1.5,
+        trailAlpha:    12
+      },
+      'slot-drum-typography': {
+        spinMinHz:  8,
+        spinMaxHz:  12,
+        overshoot:  0.08,
+        pulseScale: 0.03
       }
     }
   },
@@ -277,10 +288,15 @@ const sketch = (p) => {
       p.pop();
     }
 
-    if (state.format === 'banner') {
-      drawBannerContent(p);
-    } else {
-      drawEditorialContent(p);
+    const posterAlpha = currentAnimation?.getPosterAlpha?.() ?? 1;
+    if (posterAlpha > 0.004) {
+      p.drawingContext.globalAlpha = posterAlpha;
+      if (state.format === 'banner') {
+        drawBannerContent(p);
+      } else {
+        drawEditorialContent(p);
+      }
+      p.drawingContext.globalAlpha = 1;
     }
 
     if (fadingOut || fadingIn) tickFade(p);
@@ -1130,7 +1146,7 @@ function applyWcagPalette(palette) {
   if (bgPicker)  bgPicker.value  = palette.bg;
   if (animPicker) animPicker.value = palette.fg;
   updateContrastUI();
-  if (['flow-field', 'code-rain'].includes(state.anim.current) && currentAnimation) {
+  if (['flow-field', 'code-rain', 'glyph-flow-field'].includes(state.anim.current) && currentAnimation) {
     currentAnimation.reset();
   }
 }
@@ -1204,7 +1220,7 @@ function applyColorPreset(id) {
   lastValidFg = preset.fg;
   updateContrastUI();
   // Reset buffer-based animations so they repaint with new bg color
-  if (['flow-field', 'code-rain'].includes(state.anim.current) && currentAnimation) {
+  if (['flow-field', 'code-rain', 'glyph-flow-field'].includes(state.anim.current) && currentAnimation) {
     currentAnimation.reset();
   }
 }
@@ -1260,7 +1276,7 @@ function bindControls() {
     const posterBg = document.getElementById('poster-bg');
     if (posterBg) posterBg.value = e.target.value;
     updateContrastUI();
-    if (['flow-field', 'code-rain'].includes(state.anim.current) && currentAnimation) currentAnimation.reset();
+    if (['flow-field', 'code-rain', 'glyph-flow-field'].includes(state.anim.current) && currentAnimation) currentAnimation.reset();
   });
   slider('anim-opacity', 'anim-opacity-val', v => { state.anim.opacity        = v; });
   slider('grid-opacity', 'grid-opacity-val', v => { state.preset.gridOpacity  = v; });
@@ -1275,7 +1291,7 @@ function bindControls() {
       const bgPicker = document.getElementById('bg-color');
       if (bgPicker) bgPicker.value = newBg;
       hideContrastError();
-      if (['flow-field', 'code-rain'].includes(state.anim.current) && currentAnimation) currentAnimation.reset();
+      if (['flow-field', 'code-rain', 'glyph-flow-field'].includes(state.anim.current) && currentAnimation) currentAnimation.reset();
     } else if (autoAdjust) {
       const adjustedFg = adjustColorForContrast(state.preset.fg, newBg);
       state.preset.bg  = newBg;
@@ -1287,7 +1303,7 @@ function bindControls() {
       if (posterFg) posterFg.value = adjustedFg;
       if (bgPicker) bgPicker.value = newBg;
       hideContrastError();
-      if (['flow-field', 'code-rain'].includes(state.anim.current) && currentAnimation) currentAnimation.reset();
+      if (['flow-field', 'code-rain', 'glyph-flow-field'].includes(state.anim.current) && currentAnimation) currentAnimation.reset();
     } else {
       e.target.value = lastValidBg;
       flashPicker(e.target);
@@ -1317,7 +1333,7 @@ function bindControls() {
       if (posterBg) posterBg.value = adjustedBg;
       if (bgPicker) bgPicker.value = adjustedBg;
       hideContrastError();
-      if (['flow-field', 'code-rain'].includes(state.anim.current) && currentAnimation) currentAnimation.reset();
+      if (['flow-field', 'code-rain', 'glyph-flow-field'].includes(state.anim.current) && currentAnimation) currentAnimation.reset();
     } else {
       e.target.value = lastValidFg;
       flashPicker(e.target);

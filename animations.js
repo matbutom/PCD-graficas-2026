@@ -153,9 +153,10 @@ class BaseAnimation {
     this.render();
   }
 
-  advanceState() {}
-  render()       {}
-  reset()        {}
+  advanceState()  {}
+  render()        {}
+  reset()         {}
+  getPosterAlpha() { return 1; }   // override to control editorial overlay timing
   handleMouse(cx, cy, type) { this.mx = cx; this.my = cy; }
 }
 
@@ -556,84 +557,213 @@ class FlowField extends BaseAnimation {
 
 /* =====================================================
    4. GRID DISTORTION — Grilla de letras del mensaje deformable
-   TRIGGER DE LECTURA: en reposo / mouse lejos — las letras en sus posiciones
-   originales forman el mensaje tileado. Fila central siempre legible.
+   Glitch variant: grilla de bloques 32×32px con desplazamiento aleatorio y hue-shift
+   en animColor. FASE 1 (t=1s): máximo glitch. (t=2s): bloques se ordenan y
+   asientan (primero los más cercanos a letra). FASE 2: blockSize → 1px, canvas
+   vuelve a layout base. Blend mode: Hard Light.
    ===================================================== */
 class GridDistortion extends BaseAnimation {
   constructor(p, state) {
     super(p, state);
-    this.points = [];
+    this.t            = 0;
+    this.blocks       = [];
+    this.textCvs      = null;
+    this.BLOCK        = 32;
+    this._lastFont    = '';
+    this._needRebuild = false;
+    this._textPixels  = null;
     this.reset();
   }
 
   reset() {
-    const params = this.state.anim.params['grid-distortion'];
-    const b      = this.getBounds();
-    const sz     = this.getTextSize();
-    const cols   = Math.max(4, Math.round(b.w / (sz * 1.05)));
-    const rows   = Math.max(3, Math.round(b.h / (sz * 1.5)));
-    const stepX  = b.w / cols;
-    const stepY  = b.h / rows;
-    const midRow = Math.floor(rows / 2);
-    this.cols    = cols + 1;
-    this.points  = [];
+    this.t        = 0;
+    this._lastFont = '';
+    if (!this.textCvs) this.textCvs = document.createElement('canvas');
+    this.textCvs.width  = CANVAS_W;
+    this.textCvs.height = CANVAS_H;
+    this._renderText();
+    this._buildBlocks();
+  }
 
-    for (let iy = 0; iy <= rows; iy++) {
-      for (let ix = 0; ix <= cols; ix++) {
-        // Mid row cycles through the full message; other rows repeat MESSAGE_CHARS
-        let charIdx;
-        if (iy === midRow) {
-          charIdx = ix % MESSAGE_CHARS.length;
-        } else {
-          charIdx = (iy * (cols+1) + ix) % MESSAGE_CHARS.length;
+  _renderText() {
+    const fontName   = (this.state.anim && this.state.anim.font)       ? this.state.anim.font       :
+                       (this.state.title && this.state.title.font)      ? this.state.title.font      : 'Bebas Neue';
+    const fontWeight = (this.state.anim && this.state.anim.fontWeight)  ? this.state.anim.fontWeight : '700';
+    const fontKey    = `${fontWeight}|${fontName}`;
+    if (fontKey === this._lastFont) return;
+    this._lastFont    = fontKey;
+    this._needRebuild = true;
+
+    const ctx = this.textCvs.getContext('2d');
+    const [br, bg2, bb] = this.getBg();
+    ctx.fillStyle = `rgb(${br},${bg2},${bb})`;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+
+    let fontSize = 80;
+    for (let fs = 40; fs <= 600; fs += 2) {
+      ctx.font = `${fontWeight} ${fs}px '${fontName}', sans-serif`;
+      if (ctx.measureText('CONVOCATORIA').width >= CANVAS_W * 0.92) { fontSize = fs; break; }
+    }
+
+    const lineH = fontSize * 1.08;
+    const cy    = ZONES.anim.y + ZONES.anim.h * 0.5;
+    const [r, g, b] = this.getAnimRgb();
+    ctx.font      = `${fontWeight} ${fontSize}px '${fontName}', sans-serif`;
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillText('CONVOCATORIA', CANVAS_W / 2, cy - lineH / 2);
+    ctx.fillText('ABIERTA',      CANVAS_W / 2, cy + lineH / 2);
+
+    this._textPixels = ctx.getImageData(0, 0, CANVAS_W, CANVAS_H).data;
+  }
+
+  _buildBlocks() {
+    if (!this._textPixels) return;
+    this.p.randomSeed(this.state.anim.seed);
+
+    const B    = this.BLOCK;
+    const cols = Math.ceil(CANVAS_W / B);
+    const rows = Math.ceil(CANVAS_H / B);
+    const STEP = 16;
+    const [br, bg2, bb] = this.getBg();
+
+    const letterPts = [];
+    for (let y = 0; y < CANVAS_H; y += STEP) {
+      for (let x = 0; x < CANVAS_W; x += STEP) {
+        const idx = (y * CANVAS_W + x) * 4;
+        if (Math.abs(this._textPixels[idx] - br) + Math.abs(this._textPixels[idx+1] - bg2) + Math.abs(this._textPixels[idx+2] - bb) > 30)
+          letterPts.push({ x, y });
+      }
+    }
+
+    this.blocks = [];
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const bx = col * B, by = row * B;
+        const bcx = bx + B / 2, bcy = by + B / 2;
+        let minDist = 99999;
+        for (const lp of letterPts) {
+          const d = Math.sqrt((bcx - lp.x) ** 2 + (bcy - lp.y) ** 2);
+          if (d < minDist) minDist = d;
         }
-        this.points.push({
-          ox:       b.x + ix * stepX,
-          oy:       b.y + iy * stepY,
-          x:        b.x + ix * stepX,
-          y:        b.y + iy * stepY,
-          vx: 0, vy: 0,
-          char:     MESSAGE_CHARS[charIdx],
-          isCenter: iy === midRow
+        this.blocks.push({
+          bx, by,
+          rdx:      this.p.random(-60, 60),
+          rdy:      this.p.random(-60, 60),
+          hueShift: this.p.random(-80, 80),
+          dist:     minDist
         });
       }
     }
+
+    let maxDist = 0;
+    for (const bl of this.blocks) if (bl.dist > maxDist) maxDist = bl.dist;
+    for (const bl of this.blocks) bl.distNorm = maxDist > 0 ? bl.dist / maxDist : 0;
+    this._needRebuild = false;
   }
 
   advanceState() {
-    const params = this.state.anim.params['grid-distortion'];
-    const rad    = params.radius;
-    const force  = params.force;
-    for (const pt of this.points) {
-      if (pt.isCenter) continue; // center row stays fixed
-      const dx = this.mx - pt.ox, dy = this.my - pt.oy;
-      const d  = Math.sqrt(dx*dx + dy*dy);
-      let fx = 0, fy = 0;
-      if (d < rad && d > 0) {
-        const str = (1 - d/rad) * force;
-        fx = -(dx/d)*str; fy = -(dy/d)*str;
-      }
-      fx += (pt.ox - pt.x) * 0.08;
-      fy += (pt.oy - pt.y) * 0.08;
-      pt.vx = (pt.vx + fx*0.016) * 0.85;
-      pt.vy = (pt.vy + fy*0.016) * 0.85;
-      pt.x += pt.vx; pt.y += pt.vy;
+    this.t += 0.016 * this.state.anim.speed;
+  }
+
+  _hue2rgb(p, q, t) {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1/6) return p + (q - p) * 6 * t;
+    if (t < 1/2) return q;
+    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+    return p;
+  }
+
+  _applyHue(r, g, b, deg) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    let h = 0, s = 0; const l = (max + min) / 2;
+    if (d > 0) {
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      h = max === r ? (g - b) / d + (g < b ? 6 : 0) :
+          max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h /= 6;
     }
+    h = ((h + deg / 360) % 1 + 1) % 1;
+    if (s === 0) { const v = Math.round(l * 255); return [v, v, v]; }
+    const q2 = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p2  = 2 * l - q2;
+    return [
+      Math.round(this._hue2rgb(p2, q2, h + 1/3) * 255),
+      Math.round(this._hue2rgb(p2, q2, h)        * 255),
+      Math.round(this._hue2rgb(p2, q2, h - 1/3)  * 255)
+    ];
   }
 
   render() {
-    const [r,g,b] = this.getAnimRgb();
-    const sz      = this.getTextSize();
-    const ctx     = this.p.drawingContext;
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'middle';
-    for (const pt of this.points) {
-      const fs    = pt.isCenter ? sz * 0.92 : sz * 0.6;
-      const alpha = pt.isCenter ? 1.0 : 0.42;
-      ctx.font      = getFont(this.state, fs);
-      ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
-      ctx.fillText(pt.char, pt.x, pt.y);
+    this._renderText();
+    if (this._needRebuild) this._buildBlocks();
+
+    const CYCLE = 12;
+    const tSec  = this.t % CYCLE;
+    const ctx   = this.p.drawingContext;
+    const [r, g, b]     = this.getAnimRgb();
+    const [br, bg2, bb] = this.getBg();
+    const B = this.BLOCK;
+
+    // Phase timing (12s cycle):
+    // 0→2s  : displacement ramp 0→max
+    // 2→4s  : hold max glitch
+    // 4→7s  : settle (closest-to-letter blocks first)
+    // 7→10s : blockSize 32→1px
+    // 10→11s: hold clean text
+    // 11→12s: fade out → loop
+
+    ctx.fillStyle = `rgb(${br},${bg2},${bb})`;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+    // Text layer beneath blocks
+    let textAlpha = 0;
+    if      (tSec >= 4  && tSec < 7)  textAlpha = (tSec - 4) / 3;
+    else if (tSec >= 7  && tSec < 11) textAlpha = 1;
+    else if (tSec >= 11)              textAlpha = Math.max(0, 1 - (tSec - 11));
+
+    if (textAlpha > 0.005) {
+      ctx.globalAlpha = textAlpha;
+      ctx.drawImage(this.textCvs, 0, 0);
+      ctx.globalAlpha = 1;
     }
+
+    if (tSec >= 10) return;  // no blocks in hold/fade phase
+
+    ctx.globalCompositeOperation = 'hard-light';
+
+    const blockSize = tSec >= 7
+      ? Math.max(1, B * (1 - (tSec - 7) / 3))
+      : B;
+
+    for (const bl of this.blocks) {
+      let dx = 0, dy = 0, hueAmt = bl.hueShift;
+
+      if (tSec < 2) {
+        dx = bl.rdx * (tSec / 2);
+        dy = bl.rdy * (tSec / 2);
+      } else if (tSec < 4) {
+        dx = bl.rdx; dy = bl.rdy;
+      } else if (tSec < 7) {
+        const settleT = (tSec - 4) / 3;
+        const delay   = bl.distNorm * 0.75;
+        const prog    = Math.min(1, Math.max(0, (settleT - delay) / (1 - delay + 0.001)));
+        const ease    = prog * prog * (3 - 2 * prog);
+        dx     = bl.rdx * (1 - ease);
+        dy     = bl.rdy * (1 - ease);
+        hueAmt = bl.hueShift * (1 - ease);
+      } else {
+        hueAmt = 0;
+      }
+
+      const [hr, hg, hb] = this._applyHue(r, g, b, hueAmt);
+      ctx.fillStyle = `rgb(${hr},${hg},${hb})`;
+      ctx.fillRect(bl.bx + dx, bl.by + dy, blockSize, blockSize);
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
   }
 }
 
@@ -752,164 +882,399 @@ class BouncingShapes extends BaseAnimation {
 }
 
 /* =====================================================
-   6. WAVE INTERFERENCE — Líneas de texto que ondean
-   TRIGGER DE LECTURA: mouse lejos → ondas se aplanan, mensaje legible en filas.
+   6. WAVE INTERFERENCE — Patrón de interferencia que revela "CONVOCATORIA ABIERTA"
+   FASE 1 (t=0→1s): interferencia llena canvas con animColor. (t=1→3.5s): máscara
+   de letras aparece; ondas fuera se desvanecen. (t=3.5→5s): texto legible formado
+   enteramente por interferencia. FASE 2 (t=5→7s): máscara se disuelve, ondas vuelven
+   a rol de textura de fondo. Loop. Fuente: fuente activa del póster, tamaño llena canvas.
    ===================================================== */
 class WaveInterference extends BaseAnimation {
   constructor(p, state) {
     super(p, state);
-    this.t = 0;
-    this.rowPhases = [];
+    this.t          = 0;
+    this.emitters   = [];
+    this.maskCvs    = null;   // offscreen canvas with text mask (white on transparent)
+    this.waveCvs    = null;   // low-res interference canvas
+    this.tmpCvs     = null;   // temp canvas for compositing
+    this.SCALE      = 3;      // wave computed at 1/SCALE resolution for performance
+    this._lastFont  = '';
     this.reset();
   }
 
   reset() {
-    const params = this.state.anim.params['wave-interference'];
-    this.p.randomSeed(this.state.anim.seed);
     this.t = 0;
-    this.rowPhases = Array.from({ length: params.emitters }, (_, i) =>
-      i * (Math.PI * 2 / params.emitters) + this.p.random(Math.PI)
-    );
+    this._buildEmitters();
+    this._initCanvases();
+    this._buildMask();
+  }
+
+  _buildEmitters() {
+    this.emitters = [];
+    const N = 8;
+    for (let i = 0; i < N; i++) {
+      const angle = (i / N) * Math.PI * 2;
+      this.emitters.push({
+        x:     CANVAS_W * 0.5 + Math.cos(angle) * CANVAS_W * 0.46,
+        y:     CANVAS_H * 0.5 + Math.sin(angle) * CANVAS_H * 0.44,
+        phase: (i / N) * Math.PI * 2
+      });
+    }
+    // Extra central emitter for richer interference
+    this.emitters.push({ x: CANVAS_W * 0.5, y: CANVAS_H * 0.5, phase: Math.PI });
+  }
+
+  _initCanvases() {
+    const S  = this.SCALE;
+    const wW = Math.ceil(CANVAS_W / S);
+    const wH = Math.ceil(CANVAS_H / S);
+
+    if (!this.waveCvs) this.waveCvs = document.createElement('canvas');
+    this.waveCvs.width  = wW;
+    this.waveCvs.height = wH;
+
+    if (!this.tmpCvs) this.tmpCvs = document.createElement('canvas');
+    this.tmpCvs.width  = CANVAS_W;
+    this.tmpCvs.height = CANVAS_H;
+
+    if (!this.maskCvs) this.maskCvs = document.createElement('canvas');
+    this.maskCvs.width  = CANVAS_W;
+    this.maskCvs.height = CANVAS_H;
+  }
+
+  _buildMask() {
+    const fontName   = (this.state.anim && this.state.anim.font)       ? this.state.anim.font       :
+                       (this.state.title && this.state.title.font)      ? this.state.title.font      : 'Bebas Neue';
+    const fontWeight = (this.state.anim && this.state.anim.fontWeight)  ? this.state.anim.fontWeight : '700';
+    const fontKey    = `${fontWeight}|${fontName}`;
+    if (fontKey === this._lastFont) return;
+    this._lastFont = fontKey;
+
+    const ctx = this.maskCvs.getContext('2d');
+    ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Binary-search for the font size that makes CONVOCATORIA fill ~92% of canvas width
+    let fontSize = 80;
+    for (let fs = 40; fs <= 600; fs += 2) {
+      ctx.font = `${fontWeight} ${fs}px '${fontName}', sans-serif`;
+      if (ctx.measureText('CONVOCATORIA').width >= CANVAS_W * 0.92) { fontSize = fs; break; }
+    }
+
+    const lineH = fontSize * 1.08;
+    const cy    = ZONES.anim.y + ZONES.anim.h * 0.5;   // mismo centro que Letter Physics (y=726)
+    ctx.font      = `${fontWeight} ${fontSize}px '${fontName}', sans-serif`;
+    ctx.fillStyle = 'white';
+    ctx.fillText('CONVOCATORIA', CANVAS_W / 2, cy - lineH / 2);
+    ctx.fillText('ABIERTA',      CANVAS_W / 2, cy + lineH / 2);
   }
 
   advanceState() {
-    this.t += 0.022 * this.state.anim.speed;
+    this.t += 0.016 * this.state.anim.speed;  // 1 unit ≈ 1 second at 60 fps
+  }
+
+  _getPhase() {
+    const CYCLE = 12;
+    const tSec  = this.t % CYCLE;
+    let bgAlpha   = 1;
+    let maskAlpha = 0;
+
+    // 12s cycle:
+    // 0→2s  : full wave background (fuerte)
+    // 2→6s  : máscara de letras aparece (4s)
+    // 6→9s  : hold texto legible (3s)
+    // 9→11s : máscara se disuelve (2s)
+    // 11→12s: onda vuelve a baja opacidad → loop
+    if (tSec < 2) {
+      bgAlpha = 1; maskAlpha = 0;
+    } else if (tSec < 6) {
+      const prog = (tSec - 2) / 4;
+      maskAlpha = prog;
+      bgAlpha   = 1 - prog * 0.88;
+    } else if (tSec < 9) {
+      maskAlpha = 1; bgAlpha = 0.12;
+    } else if (tSec < 11) {
+      const prog = (tSec - 9) / 2;
+      maskAlpha  = 1 - prog;
+      bgAlpha    = 0.12 + prog * 0.88;
+    } else {
+      maskAlpha = 0;
+      bgAlpha   = 1 - (tSec - 11) * 0.75;  // fades to ~0.25
+    }
+    return { bgAlpha, maskAlpha };
+  }
+
+  _computeWave() {
+    const S    = this.SCALE;
+    const wW   = this.waveCvs.width;
+    const wH   = this.waveCvs.height;
+    const ctx  = this.waveCvs.getContext('2d');
+    const img  = ctx.createImageData(wW, wH);
+    const d    = img.data;
+
+    const [r, g, b]     = this.getAnimRgb();
+    const [br, bg2, bb] = this.getBg();
+    const freq = 0.022;   // fringe spacing ≈ stroke width (~15 px at full res)
+    const numE = this.emitters.length;
+    const spd  = this.t * 3.8;   // wave travel speed
+
+    for (let py = 0; py < wH; py++) {
+      const fy = py * S + S * 0.5;
+      for (let px = 0; px < wW; px++) {
+        const fx = px * S + S * 0.5;
+
+        let val = 0;
+        for (let i = 0; i < numE; i++) {
+          const e  = this.emitters[i];
+          const dx = fx - e.x, dy = fy - e.y;
+          val += Math.sin(Math.sqrt(dx*dx + dy*dy) * freq - spd + e.phase);
+        }
+        val = (val / numE + 1) * 0.5;   // 0..1
+
+        const idx = (py * wW + px) * 4;
+        d[idx]   = (br + (r  - br)  * val) | 0;
+        d[idx+1] = (bg2 + (g  - bg2) * val) | 0;
+        d[idx+2] = (bb + (b  - bb)  * val) | 0;
+        d[idx+3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
   }
 
   render() {
-    const p      = this.p;
-    const params = this.state.anim.params['wave-interference'];
-    const [r,g,b] = this.getAnimRgb();
-    const sz     = this.getTextSize();
-    const b_     = this.getBounds();
-    const freq   = params.frequency;
-    const amp    = params.amplitude;
-    const numRows = params.emitters;
-    const ctx    = p.drawingContext;
-    const charW  = sz * 0.62;
-    const rowH   = b_.h / (numRows + 1);
+    const p   = this.p;
+    const b_  = this.getBounds();
+    const [br, bg2, bb] = this.getBg();
+    const { bgAlpha, maskAlpha } = this._getPhase();
 
-    // Mouse controls local amplitude
-    const inCanvas = b_.x <= this.mx && this.mx <= b_.x + b_.w;
-    const mAmp     = inCanvas ? amp : amp * 0.2;
+    // Rebuild mask if font changed
+    this._buildMask();
 
-    const repeat = (MESSAGE + '  ').repeat(6);
-    ctx.font         = getFont(this.state, sz * 0.78);
-    ctx.textBaseline = 'middle';
+    // Resize canvases if canvas dimensions changed
+    if (this.waveCvs.width !== Math.ceil(CANVAS_W / this.SCALE)) {
+      this._initCanvases();
+      this._buildMask();
+    }
 
-    for (let ri = 0; ri < numRows; ri++) {
-      const baseY    = b_.y + (ri + 1) * rowH;
-      const phase    = this.rowPhases[ri];
-      const rowAlpha = p.map(ri, 0, numRows - 1, 0.92, 0.3);
+    this._computeWave();
 
-      for (let ci = 0; ci < repeat.length; ci++) {
-        const ch = repeat[ci];
-        const cx_ = b_.x - charW + ci * charW;
-        if (cx_ > b_.x + b_.w + charW) break;
+    const ctx = p.drawingContext;
 
-        const waveY = Math.sin(this.t + phase + ci * freq) * mAmp;
-        const mdx   = cx_ - this.mx, mdy = baseY - this.my;
-        const md    = Math.sqrt(mdx*mdx + mdy*mdy);
-        const local = md < 160 ? Math.sin(this.t*2.5 + md*0.04) * (1 - md/160) * amp * 0.7 : 0;
+    // Background fill
+    ctx.fillStyle = `rgb(${br},${bg2},${bb})`;
+    ctx.fillRect(b_.x, b_.y, b_.w, b_.h);
 
-        ctx.textAlign = 'center';
-        ctx.fillStyle = `rgba(${r},${g},${b},${rowAlpha})`;
-        ctx.fillText(ch, cx_, baseY + waveY + local);
-      }
+    // Full-canvas interference background
+    if (bgAlpha > 0.005) {
+      ctx.globalAlpha = bgAlpha;
+      ctx.drawImage(this.waveCvs, b_.x, b_.y, b_.w, b_.h);
+      ctx.globalAlpha = 1;
+    }
+
+    // Letter-masked interference layer
+    if (maskAlpha > 0.005) {
+      const tCtx = this.tmpCvs.getContext('2d');
+      this.tmpCvs.width = b_.w;   // clears canvas
+      this.tmpCvs.height = b_.h;
+      tCtx.drawImage(this.waveCvs, 0, 0, b_.w, b_.h);
+      tCtx.globalCompositeOperation = 'destination-in';
+      tCtx.drawImage(this.maskCvs, -b_.x, -b_.y, CANVAS_W, CANVAS_H);
+      tCtx.globalCompositeOperation = 'source-over';
+
+      ctx.globalAlpha = maskAlpha;
+      ctx.drawImage(this.tmpCvs, b_.x, b_.y);
+      ctx.globalAlpha = 1;
     }
   }
 }
 
 /* =====================================================
-   7. CODE RAIN — Lluvia con letras de CONVOCATORIA ABIERTA
-   TRIGGER DE LECTURA: columnas sincronizadas forman el mensaje en vertical.
-   Mouse cerca de una columna la congela.
+   7. CODE RAIN — "CONVOCATORIA ABIERTA" monospace canvas-fill.
+   BUILD (0→2s): lluvia aleatoria full-canvas, todas las columnas activas.
+   LOCK (2→6s): columnas se bloquean izquierda→derecha; cada columna frena
+     y hace snap al carácter correcto. Locked: brillo máximo + shadowBlur 4px.
+   STABLE (6→7.5s): todo el texto legible, pulso sin por char.
+   DISSOLVE (7.5→9s): nueva ola barre de arriba→abajo, desbloquea chars.
+   POSTER (9→10s): fade a fondo.
    ===================================================== */
 class CodeRain extends BaseAnimation {
   constructor(p, state) {
     super(p, state);
-    this.drops  = [];
-    this.buffer = null;
-    this.frame  = 0;
+    this.t    = 0;
+    this.cols = [];
+    this.buf  = null;
     this.reset();
   }
 
   reset() {
-    const sz   = this.getTextSize();
-    const colW = Math.max(18, Math.round(sz * 0.72));
-    const cols = Math.floor(CANVAS_W / colW);
+    this.t = 0;
     this.p.randomSeed(this.state.anim.seed);
-    this.colW     = colW;
-    this.fontSize = sz * 0.72;
-    // Every 3rd column is a "message column" — will display MESSAGE vertically
-    this.msgCols = new Set();
-    const spacing = Math.max(3, Math.floor(cols / 4));
-    for (let i = spacing; i < cols; i += spacing) this.msgCols.add(i);
+    this._buildLayout();
+    if (!this.buf) this.buf = document.createElement('canvas');
+    this.buf.width  = CANVAS_W;
+    this.buf.height = CANVAS_H;
+    const [br, bg2, bb] = this.getBg();
+    const bc = this.buf.getContext('2d');
+    bc.fillStyle = `rgb(${br},${bg2},${bb})`;
+    bc.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  }
 
-    this.drops = Array.from({ length: cols }, () => ({
-      y:     this.p.random(-CANVAS_H, 0),
-      charI: Math.floor(this.p.random(MESSAGE_CHARS.length)),
-      dir:   this.p.random() > 0.12 ? 1 : -1
-    }));
+  _buildLayout() {
+    // 12 cols → CONVOCATORIA fills canvas width (monospace canvas-fill)
+    const NCOLS  = 12;
+    this.NCOLS   = NCOLS;
+    this.colW    = Math.floor(CANVAS_W / NCOLS);
+    this.charH   = Math.round(this.colW / 0.60);   // Space Mono ~0.60 aspect
 
-    if (!this.buffer) this.buffer = this.p.createGraphics(CANVAS_W, CANVAS_H);
-    const [bgR,bgG,bgB] = this.getBg();
-    this.buffer.background(bgR, bgG, bgB);
-    this.frame = 0;
+    const cy        = CANVAS_H / 2;                  // centrado vertical exacto
+    const lineGap   = this.charH * 1.12;
+    this.line1Y     = cy - lineGap / 2;             // centre y of "CONVOCATORIA"
+    this.line2Y     = cy + lineGap / 2;             // centre y of "ABIERTA"
+
+    const W1       = 'CONVOCATORIA';
+    const W2       = 'ABIERTA';
+    const startW2  = Math.floor((NCOLS - W2.length) / 2);  // = 2
+
+    this.cols = Array.from({ length: NCOLS }, (_, i) => {
+      const targets = [];
+      if (i < W1.length) targets.push({ char: W1[i], y: this.line1Y });
+      const i2 = i - startW2;
+      if (i2 >= 0 && i2 < W2.length) targets.push({ char: W2[i2], y: this.line2Y });
+      return {
+        x:          i * this.colW + this.colW / 2,
+        y:          this.p.random(-CANVAS_H, -this.charH),
+        speed:      this.p.random(5, 10),
+        headChar:   this._rc(),
+        targets,
+        wasLocked:  false
+      };
+    });
+  }
+
+  _rc() {
+    return MESSAGE_CHARS[Math.floor(Math.random() * MESSAGE_CHARS.length)];
   }
 
   advanceState() {
-    const params  = this.state.anim.params['code-rain'];
-    const spd     = this.state.anim.speed;
-    const colW    = this.colW;
-    const fs      = this.fontSize;
-    this.frame   += spd;
+    this.t += 0.016 * this.state.anim.speed;
+  }
 
-    const [bgR,bgG,bgB] = this.getBg();
-    this.buffer.fill(bgR, bgG, bgB, 20);
-    this.buffer.noStroke();
-    this.buffer.rect(0, 0, CANVAS_W, CANVAS_H);
+  render() {
+    const CYCLE = 10;
+    const tSec  = this.t % CYCLE;
+    const ctx   = this.p.drawingContext;
+    const [r, g, b]     = this.getAnimRgb();
+    const [br, bg2, bb] = this.getBg();
+    const charH = this.charH;
+    const NCOLS = this.NCOLS;
+    const spd   = this.state.anim.speed;
+    const bc    = this.buf.getContext('2d');
 
-    const [r,g,b] = this.getAnimRgb();
-    const bCtx    = this.buffer.drawingContext;
-    bCtx.font         = getFont(this.state, fs);
-    bCtx.textBaseline = 'top';
-    bCtx.textAlign    = 'center';
+    bc.font         = `700 ${charH}px 'Space Mono', monospace`;
+    bc.textAlign    = 'center';
+    bc.textBaseline = 'middle';
 
-    for (let i = 0; i < this.drops.length; i++) {
-      const drop = this.drops[i];
-      const x    = i * colW + colW * 0.5;
+    // Trail decay — faster during dissolve for crisp sweep
+    const fadeA = tSec >= 7.5 ? 0.22 : 0.13;
+    bc.fillStyle = `rgba(${br},${bg2},${bb},${fadeA})`;
+    bc.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-      // Mouse freezes nearby columns
-      if (Math.abs(x - this.mx) < colW * 1.6) continue;
+    // Dissolve sweep front (top→bottom, 7.5→9s)
+    const dissolveY = tSec >= 7.5
+      ? ((tSec - 7.5) / 1.5) * (CANVAS_H + charH * 2)
+      : -1;
 
-      drop.charI = (drop.charI + 1) % MESSAGE_CHARS.length;
-      const ch   = MESSAGE_CHARS[drop.charI];
-      const prevCh = MESSAGE_CHARS[(drop.charI - 1 + MESSAGE_CHARS.length) % MESSAGE_CHARS.length];
+    for (let ci = 0; ci < NCOLS; ci++) {
+      const col   = this.cols[ci];
+      const x     = col.x;
+      const lockT = 2 + (ci / (NCOLS - 1)) * 4;   // col 0 → t=2, col 11 → t=6
+      const locked = tSec >= lockT && tSec < 7.5;
+      const streaming = !locked;
 
-      drop.y += params.dropSpeed * spd * drop.dir;
+      // Reset head when dissolve starts for previously-locked cols
+      if (tSec >= 7.5 && col.wasLocked) {
+        col.wasLocked = false;
+        col.y = -charH * (1 + Math.random() * 4);
+      }
+      if (locked) col.wasLocked = true;
 
-      bCtx.fillStyle = `rgba(${r},${g},${b},1)`;
-      bCtx.fillText(ch, x, drop.y);
-      bCtx.fillStyle = `rgba(${r},${g},${b},0.3)`;
-      bCtx.fillText(prevCh, x, drop.y - fs * drop.dir);
+      // ── Streaming rain ──
+      if (streaming) {
+        let colSpd = col.speed;
+        // Decelerate toward lock (cols approaching their lockT)
+        if (tSec >= 2 && tSec < lockT) {
+          const p = (tSec - 2) / Math.max(0.01, lockT - 2);
+          colSpd *= Math.max(0.1, 1 - p * 0.90);
+        }
+        col.y += colSpd * spd;
+        col.headChar = this._rc();
+        if (col.y > CANVAS_H + charH * 2)
+          col.y = -charH * (2 + Math.random() * 5);
 
-      if (drop.dir === 1 && drop.y > CANVAS_H && Math.random() > 0.975) drop.y = 0;
-      if (drop.dir === -1 && drop.y < 0       && Math.random() > 0.975) drop.y = CANVAS_H;
+        const TRAIL = 14;
+        for (let ti = TRAIL; ti >= 0; ti--) {
+          const chy = col.y - ti * charH;
+          if (chy < -charH || chy > CANVAS_H + charH) continue;
+          const a = ti === 0 ? 0.70 : (1 - ti / TRAIL) * 0.28;
+          bc.fillStyle = `rgba(${r},${g},${b},${a})`;
+          bc.fillText(ti === 0 ? col.headChar : this._rc(), x, chy);
+        }
+      }
 
-      // Message columns: every ~100 frames show MESSAGE vertically
-      if (this.msgCols.has(i) && Math.floor(this.frame) % 100 < MESSAGE_CHARS.length) {
-        const mi    = Math.floor(this.frame) % 100;
-        if (mi < MESSAGE_CHARS.length) {
-          const msgY = CANVAS_H * 0.18 + mi * (fs * 1.3);
-          bCtx.fillStyle = `rgba(${r},${g},${b},0.95)`;
-          bCtx.fillText(MESSAGE_CHARS[mi], x, msgY);
+      // ── Locked chars (LOCK + STABLE) ──
+      if (locked) {
+        const snap = Math.min(1, (tSec - lockT) * 3);   // 0.33s snap-in
+        bc.shadowColor = `rgba(${r},${g},${b},0.85)`;
+        bc.shadowBlur  = 4;
+        for (const tgt of col.targets) {
+          const pulse = tSec >= 6
+            ? 0.90 + 0.10 * Math.sin(tSec * Math.PI * 2.4 + ci * 0.50)
+            : 1;
+          bc.fillStyle = `rgba(${r},${g},${b},${snap * pulse})`;
+          bc.fillText(tgt.char, x, tgt.y);
+        }
+        bc.shadowBlur  = 0;
+        bc.shadowColor = 'transparent';
+      }
+
+      // ── Dissolve: locked chars fade as sweep passes ──
+      if (dissolveY >= 0) {
+        for (const tgt of col.targets) {
+          if (tgt.y < dissolveY) {
+            // Sweep has passed → show random char fading out
+            const fadeOut = Math.max(0, 1 - (dissolveY - tgt.y) / (charH * 3));
+            bc.fillStyle = `rgba(${r},${g},${b},${fadeOut * 0.80})`;
+            bc.fillText(this._rc(), x, tgt.y);
+          } else {
+            // Sweep hasn't arrived → keep locked char visible
+            bc.shadowColor = `rgba(${r},${g},${b},0.85)`;
+            bc.shadowBlur  = 4;
+            bc.fillStyle   = `rgba(${r},${g},${b},0.95)`;
+            bc.fillText(tgt.char, x, tgt.y);
+            bc.shadowBlur  = 0;
+            bc.shadowColor = 'transparent';
+          }
         }
       }
     }
+
+    // Stamp buffer onto main canvas
+    ctx.fillStyle = `rgb(${br},${bg2},${bb})`;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.drawImage(this.buf, 0, 0);
+
   }
 
-  render() { this.p.image(this.buffer, 0, 0); }
+  getPosterAlpha() {
+    // 0→7.5s: poster invisible (lluvia + texto bloqueado protagonizan)
+    // 7.5→9s: fade in mientras la onda dissolve barre el texto
+    // 9→10s:  poster completamente visible
+    const CYCLE = 10;
+    const tSec  = (this.t % CYCLE);
+    if (tSec < 7.5) return 0;
+    if (tSec < 9)   return (tSec - 7.5) / 1.5;
+    return 1;
+  }
 }
 
 /* =====================================================
@@ -1244,6 +1609,424 @@ class PixelTexture extends BaseAnimation {
 }
 
 /* =====================================================
+   12. GLYPH FLOW FIELD — partículas guiadas por campo vectorial de glyphs
+   BUILD (0→6s): 60 partículas/s emitidas desde posiciones aleatorias,
+   cada una guiada tangencialmente por los contornos del glifo.
+   Trail alpha 12, color animColor. Las letras emergen poco a poco.
+   CLIMAX (6→7.5s): emisión cesa, partículas completan sus trayectorias.
+   TRANSITION (7.5→9s): trail decae (-2/frame), partículas invertidas borran.
+   POSTER (9→10s): fade-in mientras los últimos trails se disuelven.
+   Clave: buffer de trails persistente (independiente del fondo).
+   ===================================================== */
+class GlyphFlowField extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.t         = 0;
+    this.particles = [];
+    this.trailBuf  = null;
+    this.glyphCvs  = null;
+    this.glyphData = null;
+    this._lastFont = '';
+    this.reset();
+  }
+
+  reset() {
+    this.t         = 0;
+    this.particles = [];
+    if (!this.trailBuf) {
+      this.trailBuf        = document.createElement('canvas');
+      this.trailBuf.width  = CANVAS_W;
+      this.trailBuf.height = CANVAS_H;
+    }
+    // Resize if canvas dimensions changed
+    if (this.trailBuf.width !== CANVAS_W || this.trailBuf.height !== CANVAS_H) {
+      this.trailBuf.width  = CANVAS_W;
+      this.trailBuf.height = CANVAS_H;
+    }
+    const [bgR, bgG, bgB] = this.getBg();
+    const tc = this.trailBuf.getContext('2d');
+    tc.fillStyle = `rgb(${bgR},${bgG},${bgB})`;
+    tc.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    this._buildGlyph();
+  }
+
+  _buildGlyph() {
+    const fontName   = (this.state.anim && this.state.anim.font)       ? this.state.anim.font       : 'Space Mono';
+    const fontWeight = (this.state.anim && this.state.anim.fontWeight)  ? this.state.anim.fontWeight : '700';
+    const key = `${fontWeight}|${fontName}`;
+    if (key === this._lastFont && this.glyphData) return;
+    this._lastFont = key;
+
+    if (!this.glyphCvs) this.glyphCvs = document.createElement('canvas');
+    this.glyphCvs.width  = CANVAS_W;
+    this.glyphCvs.height = CANVAS_H;
+    const ctx = this.glyphCvs.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+
+    let fs = 40;
+    for (; fs <= 600; fs += 2) {
+      ctx.font = `${fontWeight} ${fs}px '${fontName}', sans-serif`;
+      if (ctx.measureText('CONVOCATORIA').width >= CANVAS_W * 0.90) break;
+    }
+    const lineH = fs * 1.08;
+    const cy    = CANVAS_H / 2;
+    ctx.font      = `${fontWeight} ${fs}px '${fontName}', sans-serif`;
+    ctx.fillStyle = '#fff';
+    ctx.fillText('CONVOCATORIA', CANVAS_W / 2, cy - lineH / 2);
+    ctx.fillText('ABIERTA',      CANVAS_W / 2, cy + lineH / 2);
+
+    this.glyphData = ctx.getImageData(0, 0, CANVAS_W, CANVAS_H).data;
+  }
+
+  _sample(x, y) {
+    const ix = x | 0, iy = y | 0;
+    if (ix < 0 || ix >= CANVAS_W || iy < 0 || iy >= CANVAS_H) return 0;
+    return this.glyphData[(iy * CANVAS_W + ix) * 4] / 255;
+  }
+
+  _fieldVec(x, y, reversed) {
+    // Gradient of glyph brightness field → tangent = perpendicular
+    const d  = 4;
+    const gx = this._sample(x + d, y) - this._sample(x - d, y);
+    const gy = this._sample(x, y + d) - this._sample(x, y - d);
+    const gm = Math.sqrt(gx * gx + gy * gy);
+
+    let vx, vy;
+    if (gm > 0.04) {
+      // Near stroke edge: flow tangentially along contour
+      vx = -gy / gm;
+      vy =  gx / gm;
+    } else {
+      // Open area: Perlin noise + gentle vertical pull toward glyph band
+      const n   = this.p.noise(x * 0.003, y * 0.003, this.t * 0.2);
+      const ang = n * this.p.TWO_PI * 2;
+      vx = Math.cos(ang);
+      vy = Math.sin(ang);
+      const pull = (CANVAS_H * 0.5 - y) / CANVAS_H * 0.5;
+      vy += pull;
+      const vm = Math.sqrt(vx * vx + vy * vy);
+      if (vm > 0) { vx /= vm; vy /= vm; }
+    }
+    return reversed ? { vx: -vx, vy: -vy } : { vx, vy };
+  }
+
+  _emit(reversed) {
+    return {
+      x:        Math.random() * CANVAS_W,
+      y:        Math.random() * CANVAS_H,
+      age:      0,
+      life:     4 * 60,   // 4s × 60fps
+      reversed: reversed
+    };
+  }
+
+  advanceState() {
+    const spd = this.state.anim.speed;
+    this.t += 0.016 * spd;
+    const tSec = this.t % 10;
+
+    if (tSec < 6) {
+      this.particles.push(this._emit(false));
+    } else if (tSec >= 7.5 && tSec < 9) {
+      this.particles.push(this._emit(true));
+    }
+
+    const vel = 2.5 * spd;
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const pt = this.particles[i];
+      pt.age++;
+      if (pt.age > pt.life) { this.particles.splice(i, 1); continue; }
+      const { vx, vy } = this._fieldVec(pt.x, pt.y, pt.reversed);
+      pt.x += vx * vel;
+      pt.y += vy * vel;
+      if (pt.x < 0)        pt.x += CANVAS_W;
+      if (pt.x > CANVAS_W) pt.x -= CANVAS_W;
+      if (pt.y < 0)        pt.y += CANVAS_H;
+      if (pt.y > CANVAS_H) pt.y -= CANVAS_H;
+    }
+  }
+
+  render() {
+    const tSec            = this.t % 10;
+    const [r, g, b]       = this.getAnimRgb();
+    const [bgR, bgG, bgB] = this.getBg();
+    const tc              = this.trailBuf.getContext('2d');
+
+    this._buildGlyph();
+
+    // Trail decay during TRANSITION + POSTER phases
+    if (tSec >= 7.5) {
+      tc.fillStyle = `rgba(${bgR},${bgG},${bgB},0.015)`;
+      tc.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    }
+
+    // Draw particle dots onto trail buffer (alpha 12/255 per dot — accumulates over time)
+    for (const pt of this.particles) {
+      const lr      = pt.age / pt.life;
+      const fadeIn  = Math.min(1, pt.age / 20);
+      const fadeOut = lr > 0.75 ? Math.max(0, 1 - (lr - 0.75) / 0.25) : 1;
+      const alpha   = (12 / 255) * fadeIn * fadeOut;
+      if (alpha < 0.001) continue;
+      tc.beginPath();
+      tc.arc(pt.x, pt.y, 1.5, 0, Math.PI * 2);
+      tc.fillStyle = `rgba(${r},${g},${b},${alpha.toFixed(4)})`;
+      tc.fill();
+    }
+
+    this.p.drawingContext.drawImage(this.trailBuf, 0, 0);
+  }
+
+  getPosterAlpha() {
+    const tSec = this.t % 10;
+    if (tSec < 9) return 0;
+    return Math.min(1, tSec - 9);   // 1s fade-in (9→10s)
+  }
+}
+
+/* =====================================================
+   13. SLOT DRUM TYPOGRAPHY — cada char como tambor de ruleta
+   BUILD (0→6s): todos los drums arrancan girando simultáneamente.
+     Cada drum resuelve en orden aleatorio con espaciado uniforme.
+     Deceleración easeOutCubic + overshoot al snap. Chars sin resolver
+     giran a 8–12 chars/s. Canvas-fill fontSize.
+   STABLE (6→7.5s): todos bloqueados. Pulso colectivo: scale 1→1.03→1 c/1.2s.
+   EXIT (7.5→9s): todos aceleran de nuevo, opacidad 1→0 durante el giro.
+   POSTER (9→10s): fade in.
+   ===================================================== */
+class SlotDrumTypography extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.t          = 0;
+    this.drums      = [];
+    this._fontSize  = 0;
+    this._slotH     = 0;
+    this._lastCycle = -1;
+    this.reset();
+  }
+
+  reset() {
+    this.t          = 0;
+    this._lastCycle = -1;
+    this.p.randomSeed(this.state.anim.seed);
+
+    // Canvas-fill fontSize: CONVOCATORIA fills ~92% canvas width
+    const ctx  = this.p.drawingContext;
+    const font = (this.state.anim && this.state.anim.font)       ? this.state.anim.font       : 'Space Mono';
+    const wt   = (this.state.anim && this.state.anim.fontWeight)  ? this.state.anim.fontWeight : '700';
+    let fs = 40;
+    for (; fs <= 600; fs += 2) {
+      ctx.font = `${wt} ${fs}px '${font}', sans-serif`;
+      if (ctx.measureText('CONVOCATORIA').width >= CANVAS_W * 0.92) break;
+    }
+    this._fontSize = fs;
+    this._slotH    = Math.round(fs * 1.1);   // px height of one char slot
+
+    const slotH = this._slotH;
+    const N     = MESSAGE_CHARS.length;
+    const charW = fs * 0.62;
+    const lineH = fs * 1.08;
+    const cy    = CANVAS_H / 2;
+    const w1    = MESSAGE_WORDS[0].length * charW;
+    const w2    = MESSAGE_WORDS[1].length * charW;
+
+    const positions = [];
+    for (let i = 0; i < MESSAGE_WORDS[0].length; i++) {
+      positions.push({
+        x:       CANVAS_W * 0.5 - w1 * 0.5 + i * charW + charW * 0.5,
+        y:       cy - lineH * 0.5,
+        char:    MESSAGE_WORDS[0][i],
+        charIdx: i
+      });
+    }
+    for (let i = 0; i < MESSAGE_WORDS[1].length; i++) {
+      positions.push({
+        x:       CANVAS_W * 0.5 - w2 * 0.5 + i * charW + charW * 0.5,
+        y:       cy + lineH * 0.5,
+        char:    MESSAGE_WORDS[1][i],
+        charIdx: MESSAGE_WORDS[0].length + i
+      });
+    }
+
+    const total = positions.length;
+
+    // Fisher-Yates shuffle for random resolve order
+    const order = Array.from({ length: total }, (_, i) => i);
+    for (let i = total - 1; i > 0; i--) {
+      const j = Math.floor(this.p.random(i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    // resolveAt: evenly staggered across 6s, last drum starts decel at 5.1s → finishes at 6s
+    const RESOLVE_DUR = 0.9;
+    const resolveAt   = new Array(total);
+    for (let rank = 0; rank < total; rank++) {
+      resolveAt[order[rank]] = (rank / (total - 1)) * (6.0 - RESOLVE_DUR);
+    }
+
+    this.drums = positions.map((pos, i) => ({
+      x:              pos.x,
+      y:              pos.y,
+      char:           pos.char,
+      charIdx:        pos.charIdx,
+      resolveAt:      resolveAt[i],
+      spinHz:         8 + this.p.random(4),          // char-slots per second when spinning freely
+      scrollY:        this.p.random(N * slotH),      // continuous scroll position in px
+      resolveScrollY: null,   // target px (landing on correct char), set on first decel frame
+      startScrollY:   null,   // scrollY at start of decel
+      exitBaseY:      null    // scrollY at start of EXIT phase
+    }));
+  }
+
+  _easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+
+  _initDecel(drum) {
+    const N      = MESSAGE_CHARS.length;
+    const slotH  = this._slotH;
+    const cycleH = N * slotH;
+    drum.startScrollY = drum.scrollY;
+    // Nearest scrollY > current that lands drum's correct char at center
+    const base   = ((drum.charIdx * slotH) % cycleH + cycleH) % cycleH;
+    const target = base + Math.ceil((drum.scrollY + 1 - base) / cycleH) * cycleH;
+    drum.resolveScrollY = target;
+  }
+
+  advanceState() {
+    const spd  = this.state.anim.speed;
+    const dt   = 0.016 * spd;
+    this.t    += dt;
+
+    const tSec  = this.t % 10;
+    const cycle = Math.floor(this.t / 10);
+    const N     = MESSAGE_CHARS.length;
+    const RESOLVE_DUR = 0.9;
+
+    // Cycle boundary: re-seed starting positions
+    if (cycle !== this._lastCycle) {
+      this._lastCycle = cycle;
+      this.p.randomSeed(this.state.anim.seed + cycle * 37);
+      for (const drum of this.drums) {
+        drum.scrollY        = this.p.random(N * this._slotH);
+        drum.resolveScrollY = null;
+        drum.startScrollY   = null;
+        drum.exitBaseY      = null;
+      }
+    }
+
+    for (const drum of this.drums) {
+      const spinPxPerSec = drum.spinHz * this._slotH;   // px/s at full speed
+
+      if (tSec < 7.5) {
+        // BUILD + STABLE: free spin or decelerate
+        if (tSec < drum.resolveAt) {
+          drum.scrollY += spinPxPerSec * dt;
+        } else {
+          const elapsed = tSec - drum.resolveAt;
+          if (drum.resolveScrollY === null) this._initDecel(drum);
+          if (elapsed < RESOLVE_DUR) {
+            const progress    = elapsed / RESOLVE_DUR;
+            const eased       = this._easeOut(progress);
+            // overshoot: a bump that peaks mid-way then returns to 0
+            const overshootPx = this._slotH * 0.25 * Math.sin(progress * Math.PI) * (1 - eased);
+            drum.scrollY = drum.startScrollY
+              + (drum.resolveScrollY - drum.startScrollY) * eased
+              + overshootPx;
+          } else {
+            drum.scrollY = drum.resolveScrollY;
+          }
+        }
+      } else if (tSec < 9) {
+        // EXIT: quadratic spin-up from resolved position
+        if (drum.exitBaseY === null) drum.exitBaseY = drum.scrollY;
+        const elapsed = tSec - 7.5;
+        drum.scrollY  = drum.exitBaseY + 0.5 * spinPxPerSec * elapsed * elapsed / 1.5;
+      }
+      // POSTER: no update
+    }
+  }
+
+  render() {
+    const tSec      = this.t % 10;
+    const [r, g, b] = this.getAnimRgb();
+    const ctx       = this.p.drawingContext;
+    const fs        = this._fontSize;
+    const slotH     = this._slotH;
+    const N         = MESSAGE_CHARS.length;
+    const font      = (this.state.anim && this.state.anim.font)       ? this.state.anim.font       : 'Space Mono';
+    const wt        = (this.state.anim && this.state.anim.fontWeight)  ? this.state.anim.fontWeight : '700';
+    const RESOLVE_DUR = 0.9;
+
+    // EXIT fade: opacity 1→0 over 7.5→9s
+    let exitAlpha = 1;
+    if (tSec >= 7.5 && tSec < 9) exitAlpha = Math.max(0, 1 - (tSec - 7.5) / 1.5);
+    else if (tSec >= 9)          exitAlpha = 0;
+
+    // STABLE collective pulse: scale 1→1.03→1 every 1.2s
+    let pulseScale = 1;
+    if (tSec >= 6 && tSec < 7.5) {
+      const phase = ((tSec - 6) % 1.2) / 1.2;
+      pulseScale  = 1 + 0.03 * Math.sin(phase * Math.PI * 2);
+    }
+
+    ctx.save();
+    ctx.font         = `${wt} ${fs}px '${font}', sans-serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+
+    const halfW = fs * 0.32;
+    const visH  = slotH * 1.4;   // visible clip window height per drum
+
+    for (const drum of this.drums) {
+      const isFullyResolved = drum.resolveScrollY !== null
+        && (tSec - drum.resolveAt) >= RESOLVE_DUR
+        && tSec < 7.5;
+
+      ctx.save();
+
+      // Clip to drum column (canvas-space coordinates, before any transform)
+      ctx.beginPath();
+      ctx.rect(drum.x - halfW, drum.y - visH * 0.5, halfW * 2, visH);
+      ctx.clip();
+
+      // Pulse scale anchored at drum center (only for fully resolved drums in STABLE)
+      if (isFullyResolved && pulseScale !== 1) {
+        ctx.translate(drum.x, drum.y);
+        ctx.scale(pulseScale, pulseScale);
+        ctx.translate(-drum.x, -drum.y);
+      }
+
+      // scrollY → which chars are visible and at what y positions
+      const scrollY    = drum.scrollY;
+      const fracOffset = ((scrollY % slotH) + slotH) % slotH;  // sub-slot px offset
+      const baseIdx    = Math.floor(scrollY / slotH);           // char at top of window
+
+      for (let row = -1; row <= 2; row++) {
+        const ci    = ((baseIdx + row) % N + N) % N;
+        const yPos  = drum.y - fracOffset + row * slotH;
+        const dist  = Math.abs(yPos - drum.y);
+        const sAlpha = Math.max(0, 1 - dist / (slotH * 0.62));
+        if (sAlpha < 0.01) continue;
+
+        ctx.globalAlpha = exitAlpha * sAlpha;
+        ctx.fillStyle   = `rgb(${r},${g},${b})`;
+        ctx.fillText(MESSAGE_CHARS[ci], drum.x, yPos);
+      }
+
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    const tSec = this.t % 10;
+    if (tSec < 9) return 0;
+    return Math.min(1, tSec - 9);
+  }
+}
+
+/* =====================================================
    REGISTRO DE ANIMACIONES
    ===================================================== */
 const ANIMATIONS = {
@@ -1257,5 +2040,7 @@ const ANIMATIONS = {
   'constellation':        Constellation,
   'elastic-mesh':         ElasticMesh,
   'rotating-typography':  RotatingTypography,
-  'pixel-texture':        PixelTexture
+  'pixel-texture':        PixelTexture,
+  'glyph-flow-field':     GlyphFlowField,
+  'slot-drum-typography': SlotDrumTypography
 };
