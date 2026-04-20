@@ -622,7 +622,7 @@ details[open] .chevron { transform: rotate(180deg); }
   overflow: auto;
   background: #0d0d0d;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   padding: 20px;
 }

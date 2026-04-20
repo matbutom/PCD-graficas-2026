@@ -7,8 +7,24 @@
    ===================================================== */
 const IG_W     = 1080;
 const IG_H     = 1350;
-const BANNER_W = 1334;
-const BANNER_H = 400;
+const BANNER_W     = 1600;
+const BANNER_H     = 400;
+const BANNER_SPLIT = 960;   // x split: left text panel | right pixel grid
+
+// 0=bg, 1=fg, 2=mid(35% fg blend) — 16 cols × 10 rows static grid
+const BANNER_GRID_PATTERN = [
+  [1,1,1,0,0,1,1,0,1,0,0,1,0,1,1,0],
+  [1,1,0,0,1,1,0,1,0,1,0,2,0,1,0,1],
+  [0,1,1,1,0,0,1,1,0,0,1,1,2,0,1,0],
+  [1,0,0,1,1,0,0,1,1,0,1,0,0,2,1,1],
+  [1,0,1,0,1,1,0,1,0,1,0,0,1,1,0,2],
+  [0,1,0,1,0,1,1,0,1,0,1,2,1,0,1,1],
+  [1,1,0,0,1,0,1,1,0,1,1,0,0,1,0,0],
+  [0,0,1,1,0,1,0,2,1,0,0,1,1,0,1,1],
+  [1,1,0,1,1,0,1,0,0,1,2,0,1,1,0,0],
+  [0,1,1,0,0,1,1,0,1,0,0,1,0,1,1,0],
+];
+let _bannerGridData = null; // null = usa BANNER_GRID_PATTERN
 
 /* =====================================================
    PRESETS DE COLOR
@@ -107,7 +123,7 @@ const state = {
     size:          134,
     weight:        'bold',
     letterSpacing: -1,
-    lineHeight:    0.92,
+    lineHeight:    0.8,
     alignH:        'left'
   },
 
@@ -277,7 +293,7 @@ const sketch = (p) => {
     const [bgR, bgG, bgB] = hexRgb(state.preset.bg);
     p.background(bgR, bgG, bgB);
 
-    if (currentAnimation) {
+    if (currentAnimation && state.format !== 'banner') {
       p.push();
       const opa = (state.anim.opacity / 100) * fadeOpacity;
       p.drawingContext.globalAlpha = Math.max(0, Math.min(1, opa));
@@ -457,6 +473,17 @@ function resetLayout() {
   state.layout.blocks.info  = { ...DEFAULT_LAYOUT.info };
 }
 
+function randomizeBannerGrid() {
+  const cols = BANNER_GRID_PATTERN[0].length;
+  const rows = BANNER_GRID_PATTERN.length;
+  _bannerGridData = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => {
+      const r = Math.random();
+      return r < 0.44 ? 0 : r < 0.88 ? 1 : 2;
+    })
+  );
+}
+
 /* =====================================================
    LOGOS — Carga y render
    ===================================================== */
@@ -590,55 +617,81 @@ function drawEditorialContent(p) {
    BANNER CONTENT
    ===================================================== */
 function drawBannerContent(p) {
-  if (state.grid.show) drawGrid(p);
-  drawBannerTopBar(p);
-  drawBannerLogos(p);
+  drawBannerPixelGrid(p);
+  drawBannerDecorations(p);
   drawBannerTitle(p);
+  drawBannerLogos(p);
   if (state.showGuides) drawGuides(p);
 }
 
-function drawBannerTopBar(p) {
-  const barH = 28;
-  const m    = state.layout.margin;
-  const [bR, bG, bB] = hexRgb(state.preset.bg);
-  const [fR, fG, fB] = hexRgb(state.preset.fg);
+function drawBannerPixelGrid(p) {
+  const [bgR, bgG, bgB] = hexRgb(state.preset.bg);
+  const [fgR, fgG, fgB] = hexRgb(state.preset.fg);
+  const MID = 0.35;
+  const midR = Math.round(bgR * (1 - MID) + fgR * MID);
+  const midG = Math.round(bgG * (1 - MID) + fgG * MID);
+  const midB = Math.round(bgB * (1 - MID) + fgB * MID);
+
+  const grid  = _bannerGridData || BANNER_GRID_PATTERN;
+  const cols  = grid[0].length;
+  const rows  = grid.length;
+  const cellW = (CANVAS_W - BANNER_SPLIT) / cols;
+  const cellH = CANVAS_H / rows;
+
   p.push();
   p.noStroke();
-  p.fill(bR, bG, bB, 200);
-  p.rect(0, 0, CANVAS_W, barH);
-  p.stroke(fR, fG, fB, 60);
-  p.strokeWeight(0.5);
-  p.line(m, barH - 1, CANVAS_W - m, barH - 1);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const val = grid[r][c];
+      if (val === 0) continue;
+      if (val === 1) p.fill(fgR, fgG, fgB);
+      else           p.fill(midR, midG, midB);
+      p.rect(BANNER_SPLIT + c * cellW, r * cellH, cellW + 0.5, cellH + 0.5);
+    }
+  }
+  p.pop();
+}
+
+function drawBannerDecorations(p) {
+  const [fR, fG, fB] = hexRgb(state.preset.fg);
+  const fontSize = 120;
+  const lh       = fontSize * state.title.lineHeight;
+  const stripH   = 85;
+  const totalH   = 3 * lh;
+  const startY   = Math.max(20, (CANVAS_H - stripH - totalH) / 2);
+  const decSize  = 75;
+
+  p.push();
   p.noStroke();
-  p.drawingContext.font         = `400 9px 'Space Mono', monospace`;
-  p.drawingContext.fillStyle    = `rgba(${fR},${fG},${fB},0.6)`;
-  p.drawingContext.textBaseline = 'middle';
-  p.drawingContext.textAlign    = 'left';
-  p.drawingContext.fillText(state.meta.topLeft,  m, barH / 2);
-  p.drawingContext.textAlign = 'right';
-  p.drawingContext.fillText(state.meta.topRight, CANVAS_W - m, barH / 2);
+  p.drawingContext.font          = `700 ${decSize}px '${state.title.font}', monospace`;
+  p.drawingContext.letterSpacing = '0px';
+  p.drawingContext.textBaseline  = 'top';
+  p.drawingContext.textAlign     = 'left';
+  p.drawingContext.fillStyle     = `rgba(${fR},${fG},${fB},0.3)`;
+
+  for (let i = 0; i < 3; i++) {
+    p.drawingContext.fillText('/*', 10, startY + i * lh);
+  }
   p.pop();
 }
 
 function drawBannerLogos(p) {
-  const m   = state.layout.margin;
-  const fg  = state.preset.fg;
-  const bg  = state.preset.bg;
+  const m  = state.layout.margin;
+  const fg = state.preset.fg;
+  const bg = state.preset.bg;
 
-  // Regenerar si cambiaron colores
   for (const name of LOGO_ORDER) {
     const c     = _logosImgCache[name];
     const stale = !c || c.color !== fg || (name === 'processingFoundation' && c.bg !== bg);
     if (stale) _buildLogoImg(name, fg);
   }
 
-  const ctx     = p.drawingContext;
-  const y0      = 28;             // debajo del top bar
-  const stripH  = 78;             // altura del strip de logos en banner
-  const pad     = 10;
-  const logoH   = stripH - 2 * pad;
-  const hPad    = -60;
-  const totalW  = CANVAS_W - 2 * m - 2 * hPad;
+  const ctx    = p.drawingContext;
+  const stripH = 85;
+  const y0     = CANVAS_H - stripH;
+  const pad    = 8;
+  const logoH  = stripH - 2 * pad;
+  const availW = BANNER_SPLIT - 2 * m;
 
   const LOGO_SCALE = { faaad: 0.80, LID: 0.80, crtic: 1.0, processingFoundation: 1.0 };
 
@@ -653,17 +706,14 @@ function drawBannerLogos(p) {
   });
 
   const totalLogosW = logoData.reduce((a, d) => a + d.w, 0);
-  const nGaps = LOGO_ORDER.length + 1;
-  const gap   = Math.max(pad, (totalW - totalLogosW) / nGaps);
+  const gap         = Math.max(pad, (availW - totalLogosW) / (LOGO_ORDER.length - 1));
 
-  const iyBase = y0 + pad;
-  let x = m + hPad + gap;
-
+  let x = m;
   for (let i = 0; i < LOGO_ORDER.length; i++) {
     const c = _logosImgCache[LOGO_ORDER[i]];
     const d = logoData[i];
     if (c && c.img.complete && c.img.naturalWidth > 0 && d.w > 0) {
-      ctx.drawImage(c.img, x, iyBase + d.yOff, d.w, d.h);
+      ctx.drawImage(c.img, x, y0 + pad + d.yOff, d.w, d.h);
     }
     x += d.w + gap;
   }
@@ -671,35 +721,24 @@ function drawBannerLogos(p) {
 
 function drawBannerTitle(p) {
   const [fR, fG, fB] = hexRgb(state.preset.fg);
-  const m     = state.layout.margin;
-  const size  = 86;
-  const lh    = size * state.title.lineHeight;
-  const totalH = TITLE_LINES.length * lh;
-  const areaY = 106;                          // debajo del strip de logos
-  const areaH = CANVAS_H - areaY - 8;
-  const startY = areaY + Math.max(4, (areaH - totalH) / 2);
-  const x = m + 8;
+  const m        = state.layout.margin;
+  const fontSize = 120;
+  const lh       = fontSize * state.title.lineHeight;
+  const stripH   = 85;
+  const totalH   = 3 * lh;
+  const startY   = Math.max(20, (CANVAS_H - stripH - totalH) / 2);
+  const x        = 110; // after the /* decoration column (2 chars × ~45px + gap)
+  const lines    = ['PROCESSING', 'COMMUNITY', 'DAY \u2014 2026'];
 
   p.noStroke();
-  p.drawingContext.font          = `700 ${size}px '${state.title.font}', monospace`;
-  p.drawingContext.letterSpacing = state.title.letterSpacing + 'px';
+  p.drawingContext.font          = `700 ${fontSize}px '${state.title.font}', monospace`;
+  p.drawingContext.letterSpacing = '0px';
   p.drawingContext.textBaseline  = 'top';
   p.drawingContext.textAlign     = 'left';
+  p.drawingContext.fillStyle     = `rgba(${fR},${fG},${fB},1)`;
 
-  for (let i = 0; i < TITLE_LINES.length; i++) {
-    const line  = TITLE_LINES[i];
-    const lineY = startY + i * lh;
-    if (line.startsWith('/*')) {
-      const prefix  = '/*';
-      const prefixW = p.drawingContext.measureText(prefix).width;
-      p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.3)`;
-      p.drawingContext.fillText(prefix, x, lineY);
-      p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},1)`;
-      p.drawingContext.fillText(line.slice(2), x + prefixW, lineY);
-    } else {
-      p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.9)`;
-      p.drawingContext.fillText(line, x, lineY);
-    }
+  for (let i = 0; i < lines.length; i++) {
+    p.drawingContext.fillText(lines[i], x, startY + i * lh);
   }
   p.drawingContext.letterSpacing = '0px';
 }
@@ -1246,7 +1285,12 @@ function bindControls() {
   };
 
   // ——— Formato ———
-  onChange('format-select', e => { switchFormat(e.target.value); });
+  onChange('format-select', e => {
+    switchFormat(e.target.value);
+    const bc = document.getElementById('banner-controls');
+    if (bc) bc.style.display = e.target.value === 'banner' ? '' : 'none';
+  });
+  onClick('btn-randomize-banner', () => { randomizeBannerGrid(); showToast('Banner aleatorio'); });
 
   // ——— Layout y Grilla ———
   slider('margin-val',   'margin-disp',    v => { state.layout.margin = v; });
