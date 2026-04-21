@@ -251,7 +251,8 @@ const state = {
   showGuides:   false,
   playing:      true,
   format:       'ig',
-  posterSlide:  1
+  posterSlide:     1,
+  showExtraLogos:  true
 };
 
 // Últimos colores válidos (usados para revertir cambios que rompen WCAG AA)
@@ -676,15 +677,44 @@ function drawSlide1(p) {
     }
   }
 
-  // ── Logo FaAAD — bottom-left, alineado al borde de la grilla ──
-  const logoH   = 90;
-  const logoName = 'faad_lockup-principal';
-  const c = _logosImgCache[logoName];
-  if (c && c.img.complete && c.img.naturalWidth > 0) {
-    const w = logoH * (c.img.naturalWidth / c.img.naturalHeight);
-    const logoX = 40;  // ← posición X del logo FaAAD
-    const logoY = CANVAS_H - 10 - logoH;  // ← 40 = distancia desde el borde inferior
-    p.drawingContext.drawImage(c.img, logoX, logoY, w, logoH);
+  // ── Logos en la parte inferior ──
+  const logoH      = 90;
+  const gridBottom = CANVAS_H - my;
+  const logoY      = gridBottom - logoH;
+  const ctx        = p.drawingContext;
+
+  // FAAD fijo en el borde izquierdo de la grilla
+  const cFaad  = _logosImgCache['faad_lockup-principal'];
+  const faadW  = (cFaad && cFaad.img.naturalWidth) ? logoH * (cFaad.img.naturalWidth / cFaad.img.naturalHeight) : 0;
+  if (cFaad && cFaad.img.complete && faadW > 0) {
+    ctx.drawImage(cFaad.img, mx, logoY, faadW, logoH);
+  }
+
+  // 3 logos extra distribuidos con espaciado igual en el espacio restante
+  if (state.showExtraLogos) {
+    const extraLogos  = ['LID', 'crtic', 'processingFoundation'];
+    const extraScales = { LID: 0.90, crtic: 1.0, processingFoundation: 1.0 };
+    const extraWidths = extraLogos.map(name => {
+      const c = _logosImgCache[name];
+      if (!c || !c.img.complete || c.img.naturalWidth === 0) return 0;
+      return logoH * extraScales[name] * (c.img.naturalWidth / c.img.naturalHeight);
+    });
+    const totalExtraW = extraWidths.reduce((a, w) => a + w, 0);
+    // Espacio disponible desde el borde derecho del FAAD hasta el borde derecho de la grilla
+    const rightEdge   = CANVAS_W - mx;
+    const spaceAfter  = rightEdge - (mx + faadW);
+    const gap         = (spaceAfter - totalExtraW) / extraLogos.length; // n gaps incluyendo el de separación con FAAD
+    let x = mx + faadW + gap;
+    for (let i = 0; i < extraLogos.length; i++) {
+      const name = extraLogos[i];
+      const c    = _logosImgCache[name];
+      const h    = logoH * extraScales[name];
+      const w    = extraWidths[i];
+      if (c && c.img.complete && c.img.naturalWidth > 0 && w > 0) {
+        ctx.drawImage(c.img, x, logoY + (logoH - h), w, h);
+      }
+      x += w + gap;
+    }
   }
 }
 
@@ -1418,13 +1448,18 @@ function bindControls() {
   onChange('format-select', e => {
     switchFormat(e.target.value);
     const isBanner = e.target.value === 'banner';
-    const bc = document.getElementById('banner-controls');
-    const sc = document.getElementById('poster-slide-controls');
-    if (bc) bc.style.display = isBanner ? '' : 'none';
-    if (sc) sc.style.display = isBanner ? 'none' : '';
+    const bc  = document.getElementById('banner-controls');
+    const sc  = document.getElementById('poster-slide-controls');
+    const elc = document.getElementById('extra-logos-controls');
+    if (bc)  bc.style.display  = isBanner ? '' : 'none';
+    if (sc)  sc.style.display  = isBanner ? 'none' : '';
+    if (elc) elc.style.display = isBanner ? 'none' : '';
   });
   onChange('poster-slide-select', e => {
     state.posterSlide = Number(e.target.value);
+  });
+  onCheck('extra-logos-toggle', e => {
+    state.showExtraLogos = e.target.checked;
   });
   onClick('btn-randomize-banner', () => { randomizeBannerGrid(); showToast('Banner aleatorio'); });
 
