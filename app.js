@@ -687,7 +687,7 @@ function drawSlide1(p) {
   const cFaad  = _logosImgCache['faad_lockup-principal'];
   const faadW  = (cFaad && cFaad.img.naturalWidth) ? logoH * (cFaad.img.naturalWidth / cFaad.img.naturalHeight) : 0;
   if (cFaad && cFaad.img.complete && faadW > 0) {
-    ctx.drawImage(cFaad.img, mx, logoY, faadW, logoH);
+    ctx.drawImage(cFaad.img, mx - 12, logoY + 20, faadW, logoH);
   }
 
   // 3 logos extra distribuidos con espaciado igual en el espacio restante
