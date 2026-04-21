@@ -221,10 +221,14 @@ class LetterPhysics extends BaseAnimation {
     this.noiseZ += 0.006 * spd;
 
     // ── Fase typewriter ──────────────────────────────────────────
+    // Timings fixed in frames so total always = 300 frames (10s @ 30fps):
+    //   typewriter: 3 frames/letter × 19 = 57 + 18 pause = 75 frames (2.5s)
+    //   physics:    150 frames (5s)
+    //   return:     75 frames (2.5s)
     if (this.phase === 'typewriter') {
       this.twTimer++;
-      const twDelay  = Math.max(3, Math.round(9 / spd));   // frames por letra
-      const pauseDur = Math.max(30, Math.round(90 / spd));  // frames de pausa al final
+      const twDelay  = 3;   // fixed: frames per letter
+      const pauseDur = 18;  // fixed: pause after last letter
 
       if (this.twIdx < this.circles.length) {
         // Revelar siguiente letra
@@ -250,7 +254,7 @@ class LetterPhysics extends BaseAnimation {
 
     // ── Fase return — easing de vuelta a posición inicial ────────
     if (this.phase === 'return') {
-      const returnDur = Math.max(60, Math.round(105 / spd)); // ~3.5s at 30fps
+      const returnDur = 75; // 2.5s at 30fps — fixed, independent of speed (total loop = 300 frames = 10s)
       this.retT += 1 / returnDur;
       if (this.retT >= 1) {
         this.reset();
@@ -270,9 +274,9 @@ class LetterPhysics extends BaseAnimation {
     }
     // ─────────────────────────────────────────────────────────────
 
-    // Count physics frames and trigger return phase after ~8 seconds
+    // Count physics frames and trigger return phase — fixed 5s
     this.physTimer++;
-    const physicsDur = Math.max(120, Math.round(240 / spd)); // ~8s at 30fps
+    const physicsDur = 150; // 5s at 30fps — fixed, independent of speed
     if (this.physTimer >= physicsDur) {
       // Snapshot current positions as start of return lerp
       for (const c of this.circles) { c.sx = c.x; c.sy = c.y; }

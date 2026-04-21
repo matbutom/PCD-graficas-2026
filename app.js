@@ -296,7 +296,7 @@ const sketch = (p) => {
     const [bgR, bgG, bgB] = hexRgb(state.preset.bg);
     p.background(bgR, bgG, bgB);
 
-    if (currentAnimation && state.format !== 'banner') {
+    if (currentAnimation && state.format !== 'banner' && state.posterSlide === 1) {
       p.push();
       const opa = (state.anim.opacity / 100) * fadeOpacity;
       p.drawingContext.globalAlpha = Math.max(0, Math.min(1, opa));
@@ -982,84 +982,121 @@ function drawTitle(p) {
 }
 
 function drawInfoBlock(p) {
-  const { font, size, weight, letterSpacing, lineHeight, alignH } = state.infoBlock;
-  const b    = state.layout.blocks.info;
-  const cell = getCellRect(b.colStart, b.rowStart, b.colSpan, b.rowSpan);
+  const size   = 30;
+  const lh     = size * state.infoBlock.lineHeight;
+  const mx     = state.layout.marginX;
+  const my     = state.layout.marginY;
+  const indent = mx + size * 1.2;
+  const maxW   = CANVAS_W - mx * 2;
+  const valW   = CANVAS_W - indent - mx;
   const [fR, fG, fB] = hexRgb(state.preset.fg);
 
-  drawBlockInCell(p, cell, () => {
-    const weightNum = weight === 'black' ? '900' : weight === 'bold' ? '700' : '400';
-    const fontStr   = `${weightNum} ${size}px '${font}', monospace`;
-    const lh        = size * lineHeight;
-    const pad       = 8;
-    const maxW      = cell.w - pad * 2;
+  p.noStroke();
+  p.drawingContext.save();
+  p.drawingContext.font          = `normal ${size}px 'Necto Mono', monospace`;
+  p.drawingContext.letterSpacing = '0px';
+  p.drawingContext.textBaseline  = 'alphabetic';
+  p.drawingContext.textAlign     = 'left';
+  p.drawingContext.fillStyle     = `rgba(${fR},${fG},${fB},1.0)`;
 
-    p.noStroke();
-    p.drawingContext.font          = fontStr;
-    p.drawingContext.letterSpacing = letterSpacing + 'px';
-    p.drawingContext.textBaseline  = 'alphabetic';
+  let y = my + size;
 
-    let x, align;
-    if (alignH === 'right') {
-      x = cell.x + cell.w - pad; align = 'right';
-    } else if (alignH === 'center') {
-      x = cell.x + cell.w / 2; align = 'center';
+  p.drawingContext.fillText('{', mx, y);
+  y += lh;
+
+  for (let i = 0; i < INFO_LINES.length; i++) {
+    const line   = INFO_LINES[i];
+    const colon  = line.indexOf(':');
+    const isLast = i === INFO_LINES.length - 1;
+
+    if (colon > -1) {
+      const key     = '"' + line.slice(0, colon).trim() + '": ';
+      const val     = '"' + line.slice(colon + 1).trim() + '"' + (isLast ? '' : ',');
+      const keyW    = p.drawingContext.measureText(key).width;
+      const inlineW = valW - keyW;
+
+      // key + first value chunk on same line
+      p.drawingContext.fillText(key, indent, y);
+      const wrapped = wrapText(p, val, inlineW);
+      p.drawingContext.fillText(wrapped[0], indent + keyW, y);
+      y += lh;
+      for (let li = 1; li < wrapped.length; li++) {
+        p.drawingContext.fillText(wrapped[li], indent + keyW, y);
+        y += lh;
+      }
     } else {
-      x = cell.x + pad; align = 'left';
-    }
-    p.drawingContext.textAlign = align;
-
-    let y = cell.y + LOGOS_H + pad + size;
-
-    p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.55)`;
-    p.drawingContext.fillText('[', x, y);
-    y += lh;
-
-    for (let i = 0; i < INFO_LINES.length; i++) {
-      const line   = INFO_LINES[i];
-      const colon  = line.indexOf(':');
-      const isLast = i === INFO_LINES.length - 1;
-
-      if (colon > -1) {
-        const keyPart = '"' + line.slice(0, colon).trim() + '": ';
-        const valPart = '"' + line.slice(colon + 1).trim() + '"' + (isLast ? '' : ',');
-        const keyStr  = '  ' + keyPart;
-        const keyW    = p.drawingContext.measureText(keyStr).width;
-
-        p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.65)`;
-        if (alignH === 'left') {
-          p.drawingContext.fillText(keyStr, x, y);
-        }
-
-        const valX    = (alignH === 'left') ? x + keyW : x;
-        const valMaxW = (alignH === 'left') ? maxW - keyW : maxW;
-        const valLines = wrapText(p, valPart, valMaxW);
-
-        p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},1.0)`;
-        for (let li = 0; li < valLines.length; li++) {
-          if (li === 0 && alignH === 'left') {
-            p.drawingContext.fillText(valLines[li], valX, y);
-          } else {
-            p.drawingContext.fillText(valLines[li], x + (alignH === 'left' ? pad * 2 : 0), y + li * lh);
-          }
-        }
-        y += Math.max(1, valLines.length) * lh;
-      } else {
-        const fullLine = '  "' + line + '"' + (isLast ? '' : ',');
-        const wrapped  = wrapText(p, fullLine, maxW);
-        p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},1.0)`;
-        for (const wl of wrapped) {
-          p.drawingContext.fillText(wl, x, y);
-          y += lh;
-        }
+      const fullLine = '  "' + line + '"' + (isLast ? '' : ',');
+      const wrapped  = wrapText(p, fullLine, maxW);
+      for (const wl of wrapped) {
+        p.drawingContext.fillText(wl, indent, y);
+        y += lh;
       }
     }
+  }
 
-    p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.55)`;
-    p.drawingContext.fillText(']', x, y);
+  p.drawingContext.fillText('}', mx, y);
+  p.drawingContext.restore();
 
-    p.drawingContext.letterSpacing = '0px';
-  });
+  // Píxeles animados en las 2 últimas filas de la grilla (por detrás del logo)
+  drawSlide2Pixels(p);
+
+  // Logo FaAAD — misma posición exacta que slide 1 (encima de los píxeles)
+  const logoH    = 90;
+  const logoName = 'faad_lockup-principal';
+  // Regenerar si cambió el color (igual que drawLogos)
+  const fg = state.preset.fg;
+  const lc = _logosImgCache[logoName];
+  if (!lc || lc.color !== fg) _buildLogoImg(logoName, fg);
+  const c = _logosImgCache[logoName];
+  if (c && c.img.complete && c.img.naturalWidth > 0) {
+    const w    = logoH * (c.img.naturalWidth / c.img.naturalHeight);
+    const logoX = 40;
+    const logoY = CANVAS_H - 10 - logoH;
+    p.drawingContext.drawImage(c.img, logoX, logoY, w, logoH);
+  }
+}
+
+function drawSlide2Pixels(p) {
+  const { cols, rows } = state.grid;
+  const gx    = state.layout.marginX;
+  const gy    = state.layout.marginY;
+  const gw    = CANVAS_W - 2 * gx;
+  const gh    = CANVAS_H - 2 * gy;
+  const cellH = gh / rows;
+
+  // Últimas 3.5 filas de la grilla
+  const pixelRows = 2.3;
+  const areaY = gy + (rows - pixelRows) * cellH;
+  const areaH = pixelRows * cellH;
+  const areaX = gx;
+  const areaW = gw;
+
+  const pixSize  = 40;
+  const pCols    = Math.floor(areaW / pixSize);
+  const pRows    = Math.floor(areaH / pixSize);
+  const bottom   = gy + gh; // borde inferior exacto de la grilla
+  const startY   = bottom - pRows * pixSize; // anclar desde abajo
+  const t        = p5Instance.frameCount * 0.018;
+  const [fR, fG, fB] = hexRgb(state.preset.fg);
+  const opa      = Math.min(1, (state.preset.gridOpacity / 100) * 2.2);
+
+  p.drawingContext.save();
+  for (let row = 0; row < pRows; row++) {
+    for (let col = 0; col < pCols; col++) {
+      const n = p.noise(col * 0.22, row * 0.22, t);
+      if (n > 0.48) {
+        const alpha = (n - 0.48) / 0.52 * opa;
+        p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(3)})`;
+        p.drawingContext.fillRect(
+          areaX + col * pixSize,
+          startY + row * pixSize,
+          pixSize - 2,
+          pixSize - 2
+        );
+      }
+    }
+  }
+  p.drawingContext.restore();
 }
 
 function wrapText(p, text, maxWidth) {
