@@ -151,7 +151,9 @@ const state = {
   },
 
   layout: {
-    margin: MARGIN,
+    margin:  MARGIN,
+    marginX: 62,
+    marginY: 40,
     blocks: {
       title: { colStart: 0, colSpan: 3, rowStart: 4, rowSpan: 2 },
       info:  { colStart: 0, colSpan: 3, rowStart: 0, rowSpan: 3 }
@@ -172,7 +174,7 @@ const state = {
     params: {
       'letter-physics': {
         text:       'CONVOCATORIA ABIERTA',
-        circleSize: 38,
+        circleSize: 58,
         gravity:    0,
         friction:   0.992,
         repulsion:  240,
@@ -246,9 +248,10 @@ const state = {
     }
   },
 
-  showGuides: false,
-  playing:    true,
-  format:     'ig'
+  showGuides:   false,
+  playing:      true,
+  format:       'ig',
+  posterSlide:  1
 };
 
 // Últimos colores válidos (usados para revertir cambios que rompen WCAG AA)
@@ -488,7 +491,7 @@ function randomizeBannerGrid() {
    LOGOS — Carga y render
    ===================================================== */
 const LOGOS_H   = 120;  // altura en px del canvas
-const LOGO_ORDER = ['faaad', 'LID', 'crtic', 'processingFoundation'];
+const LOGO_ORDER = ['faad_lockup-principal', 'LID', 'crtic', 'processingFoundation'];
 
 let _logosSvgText  = {};
 let _logosImgCache = {};
@@ -568,7 +571,7 @@ function drawLogos(p) {
 
   // Escala individual por logo (1.0 = altura completa)
   const LOGO_SCALE = {
-    faaad:                0.80,
+    'faad_lockup-principal': 0.80,
     LID:                  0.80,
     crtic:                1.0,
     processingFoundation: 1.0
@@ -607,10 +610,107 @@ function drawLogos(p) {
    ===================================================== */
 function drawEditorialContent(p) {
   if (state.grid.show) drawGrid(p);
-  drawLogos(p);
-  drawInfoBlock(p);
-  drawTitle(p);
+  if      (state.posterSlide === 1) { drawSlide1(p); }
+  else if (state.posterSlide === 2) { drawInfoBlock(p); }
+  else if (state.posterSlide === 3) { drawLogosCentered(p); }
   if (state.showGuides) drawGuides(p);
+}
+
+function drawSlide1(p) {
+  const mx             = state.layout.marginX;
+  const my             = state.layout.marginY;
+  const fg             = state.preset.fg;
+  const bg             = state.preset.bg;
+  const [fR, fG, fB]   = hexRgb(fg);
+
+  // refresh logos
+  for (const name of LOGO_ORDER) {
+    const c = _logosImgCache[name];
+    if (!c || c.color !== fg || (name === 'processingFoundation' && c.bg !== bg)) _buildLogoImg(name, fg);
+  }
+
+  // ── Tag strip ──
+  const tagY = 0;
+  const tagH = 55;
+  p.push();
+  p.noStroke();
+  p.fill(fR, fG, fB, 18);
+  p.rect(0, tagY, CANVAS_W, tagH);
+  p.drawingContext.font          = `400 20px 'Necto Mono', monospace`;
+  p.drawingContext.letterSpacing = '2.4px';
+  p.drawingContext.textBaseline  = 'middle';
+  p.drawingContext.textAlign     = 'left';
+  p.drawingContext.fillStyle     = `rgba(${fR},${fG},${fB},0.75)`;
+  p.drawingContext.fillText('CONVOCATORIA ABIERTA', mx + 12, tagH / 2);
+  p.drawingContext.letterSpacing = '0px';
+  p.pop();
+
+  // ── Título ──
+  const titleX      = mx;
+  const titleStartY = tagY + tagH + 56;
+  const availW      = CANVAS_W - 2 * mx;
+
+  const fontSize  = 140;
+  const lh        = 132;
+  const kerning   = '0px';
+
+  p.noStroke();
+  p.drawingContext.font          = `700 ${fontSize}px 'workfaaad-a', monospace`;
+  p.drawingContext.textBaseline  = 'top';
+  p.drawingContext.textAlign     = 'left';
+  p.drawingContext.letterSpacing = kerning;
+
+  for (let i = 0; i < TITLE_LINES.length; i++) {
+    const line  = TITLE_LINES[i];
+    const lineY = titleStartY + i * lh;
+    if (line.startsWith('/*')) {
+      const prefix  = '/*';
+      const prefixW = p.drawingContext.measureText(prefix).width;
+      p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.25)`;
+      p.drawingContext.fillText(prefix, titleX, lineY);
+      p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},1)`;
+      p.drawingContext.fillText(line.slice(2), titleX + prefixW, lineY);
+    } else {
+      p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},1)`;
+      p.drawingContext.fillText(line, titleX, lineY);
+    }
+  }
+
+  // ── Logo FaAAD — bottom-left, alineado al borde de la grilla ──
+  const logoH   = 90;
+  const logoName = 'faad_lockup-principal';
+  const c = _logosImgCache[logoName];
+  if (c && c.img.complete && c.img.naturalWidth > 0) {
+    const w = logoH * (c.img.naturalWidth / c.img.naturalHeight);
+    const logoX = 40;  // ← posición X del logo FaAAD
+    const logoY = CANVAS_H - 10 - logoH;  // ← 40 = distancia desde el borde inferior
+    p.drawingContext.drawImage(c.img, logoX, logoY, w, logoH);
+  }
+}
+
+function drawLogosCentered(p) {
+  const fg = state.preset.fg;
+  const bg = state.preset.bg;
+  for (const name of LOGO_ORDER) {
+    const c = _logosImgCache[name];
+    const stale = !c || c.color !== fg || (name === 'processingFoundation' && c.bg !== bg);
+    if (stale) _buildLogoImg(name, fg);
+  }
+
+  const ctx    = p.drawingContext;
+  const logoH  = 120;
+  const pad    = 40;
+  const totalH = LOGO_ORDER.length * logoH + (LOGO_ORDER.length - 1) * pad;
+  let   y      = (CANVAS_H - totalH) / 2;
+
+  for (const name of LOGO_ORDER) {
+    const c = _logosImgCache[name];
+    if (!c || !c.img.complete || c.img.naturalWidth === 0) { y += logoH + pad; continue; }
+    const w = logoH * (c.img.naturalWidth / c.img.naturalHeight);
+    const x = (CANVAS_W - w) / 2;
+    ctx.drawImage(c.img, x, y, w, logoH);
+    y += logoH + pad;
+  }
 }
 
 /* =====================================================
@@ -696,7 +796,7 @@ function drawBannerLogos(p) {
   const xStart = BANNER_SPLIT;
   const availW = CANVAS_W - xStart - m - pad;
 
-  const LOGO_SCALE = { faaad: 0.80, LID: 0.80, crtic: 1.0, processingFoundation: 1.0 };
+  const LOGO_SCALE = { 'faad_lockup-principal': 0.80, LID: 0.80, crtic: 1.0, processingFoundation: 1.0 };
 
   const logoData = LOGO_ORDER.map(name => {
     const c = _logosImgCache[name];
@@ -765,11 +865,10 @@ function switchFormat(fmt) {
 
 function drawGrid(p) {
   const { cols, rows, weight } = state.grid;
-  const m    = state.layout.margin;
-  const gx   = m;
-  const gy   = m;
-  const gw   = CANVAS_W - 2 * m;
-  const gh   = CANVAS_H - 2 * m;
+  const gx   = state.layout.marginX;
+  const gy   = state.layout.marginY;
+  const gw   = CANVAS_W - 2 * gx;
+  const gh   = CANVAS_H - 2 * gy;
   const opa  = state.preset.gridOpacity;
   const [fR, fG, fB] = hexRgb(state.preset.fg);
 
@@ -1281,8 +1380,14 @@ function bindControls() {
   // ——— Formato ———
   onChange('format-select', e => {
     switchFormat(e.target.value);
+    const isBanner = e.target.value === 'banner';
     const bc = document.getElementById('banner-controls');
-    if (bc) bc.style.display = e.target.value === 'banner' ? '' : 'none';
+    const sc = document.getElementById('poster-slide-controls');
+    if (bc) bc.style.display = isBanner ? '' : 'none';
+    if (sc) sc.style.display = isBanner ? 'none' : '';
+  });
+  onChange('poster-slide-select', e => {
+    state.posterSlide = Number(e.target.value);
   });
   onClick('btn-randomize-banner', () => { randomizeBannerGrid(); showToast('Banner aleatorio'); });
 
@@ -1294,6 +1399,7 @@ function bindControls() {
   slider('grid-weight',  'grid-weight-val', v => { state.grid.weight = v; }, 0.1, 1);
   onCheck('guides-toggle', e => {
     state.showGuides = e.target.checked;
+    state.grid.show  = e.target.checked;
     el('btn-guides').classList.toggle('active', e.target.checked);
   });
   onClick('btn-randomize-layout', () => { randomizeLayout(); showToast('Layout aleatorio'); });
@@ -1430,6 +1536,7 @@ function bindControls() {
 
   onClick('btn-guides', () => {
     state.showGuides = !state.showGuides;
+    state.grid.show  = state.showGuides;
     el('btn-guides').classList.toggle('active', state.showGuides);
     const toggle = el('guides-toggle');
     if (toggle) toggle.checked = state.showGuides;

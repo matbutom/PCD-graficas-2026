@@ -176,19 +176,28 @@ class LetterPhysics extends BaseAnimation {
     this.reset();
   }
 
+  getAnimZone() {
+    const base = super.getAnimZone();
+    // Push target positions ~180px lower so animation starts in the lower half
+    const offset = 180;
+    return { x: base.x, y: base.y + offset, w: base.w, h: base.h };
+  }
+
   reset() {
     const params = this.state.anim.params['letter-physics'];
     const r  = params.circleSize;
     const sz = this.getTextSize();
     this.p.randomSeed(this.state.anim.seed);
     const layout = getMessageLayout(this.getAnimZone(), sz);
-    this.noiseZ   = 0;
-    this.snapMode = false;
+    this.noiseZ    = 0;
+    this.snapMode  = false;
+    this.physTimer = 0;  // frames in physics phase
 
     // Typewriter intro state
-    this.phase   = 'typewriter'; // 'typewriter' | 'physics'
-    this.twIdx   = 0;            // número de letras reveladas
-    this.twTimer = 0;            // frame counter dentro de la fase
+    this.phase   = 'typewriter'; // 'typewriter' | 'physics' | 'return'
+    this.twIdx   = 0;
+    this.twTimer = 0;
+    this.retT    = 0;   // 0→1 lerp progress for return phase
 
     this.circles = MESSAGE_CHARS.map((char, i) => ({
       x:    layout[i].tx,
@@ -227,6 +236,7 @@ class LetterPhysics extends BaseAnimation {
         // Todas reveladas → esperar y luego lanzar física
         if (this.twTimer >= pauseDur) {
           this.phase = 'physics';
+          this.physTimer = 0;
           this.p.randomSeed(this.state.anim.seed + 99);
           for (const c of this.circles) {
             c.vx = this.p.random(-2, 2);
@@ -237,6 +247,39 @@ class LetterPhysics extends BaseAnimation {
       return;
     }
     // ─────────────────────────────────────────────────────────────
+
+    // ── Fase return — easing de vuelta a posición inicial ────────
+    if (this.phase === 'return') {
+      const returnDur = Math.max(60, Math.round(105 / spd)); // ~3.5s at 30fps
+      this.retT += 1 / returnDur;
+      if (this.retT >= 1) {
+        this.reset();
+        return;
+      }
+      // Ease-in-out cubic
+      const t = this.retT < 0.5
+        ? 4 * this.retT * this.retT * this.retT
+        : 1 - Math.pow(-2 * this.retT + 2, 3) / 2;
+      for (const c of this.circles) {
+        c.x = c.sx + (c.tx - c.sx) * t;
+        c.y = c.sy + (c.ty - c.sy) * t;
+        c.vx *= 0.85;
+        c.vy *= 0.85;
+      }
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────
+
+    // Count physics frames and trigger return phase after ~8 seconds
+    this.physTimer++;
+    const physicsDur = Math.max(120, Math.round(240 / spd)); // ~8s at 30fps
+    if (this.physTimer >= physicsDur) {
+      // Snapshot current positions as start of return lerp
+      for (const c of this.circles) { c.sx = c.x; c.sy = c.y; }
+      this.phase = 'return';
+      this.retT  = 0;
+      return;
+    }
 
     if (this.snapMode) {
       this.snapT += 0.05 * spd;
@@ -324,7 +367,7 @@ class LetterPhysics extends BaseAnimation {
       return;
     }
 
-    // Fase physics — render normal
+    // Fase physics / return — render normal
     for (const c of this.circles) {
       ctx.save();
       ctx.beginPath();

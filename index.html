@@ -15,6 +15,12 @@
   <!-- Custom Fonts -->
   <style>
     @font-face {
+      font-family: 'workfaaad-a';
+      src: url('assets/fonts/WorkFaAAD-A.otf') format('opentype');
+      font-weight: normal;
+      font-style: normal;
+    }
+    @font-face {
       font-family: 'workfaaad-b';
       src: url('assets/fonts/WorkFaAAD-B.otf') format('opentype');
       font-weight: normal;
@@ -74,6 +80,14 @@
               <select id="format-select" class="select-input select-full">
                 <option value="ig">Instagram — 1080×1350</option>
                 <option value="banner">Banner — 1600×400</option>
+              </select>
+            </div>
+            <div class="sub-group" id="poster-slide-controls">
+              <div class="sub-label">Slide del poster</div>
+              <select id="poster-slide-select" class="select-input select-full">
+                <option value="1">1 — Título + Logos</option>
+                <option value="2">2 — Info del evento</option>
+                <option value="3">3 — Logos centrados</option>
               </select>
             </div>
             <div class="sub-group" id="banner-controls" style="display:none">
