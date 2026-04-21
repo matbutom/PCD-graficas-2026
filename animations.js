@@ -176,10 +176,16 @@ class LetterPhysics extends BaseAnimation {
     this.reset();
   }
 
+  getBounds() {
+    if (this.state.anim.fullCanvas && this.state.posterSlide === 0) {
+      return { x: 0, y: 1000, w: CANVAS_W, h: CANVAS_H - 1000 };
+    }
+    return super.getBounds();
+  }
+
   getAnimZone() {
     const base = super.getAnimZone();
-    // Push target positions ~180px lower so animation starts in the lower half
-    const offset = 180;
+    const offset = this.state.posterSlide === 0 ? 350 : 180;
     return { x: base.x, y: base.y + offset, w: base.w, h: base.h };
   }
 

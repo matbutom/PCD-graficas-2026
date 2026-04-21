@@ -251,7 +251,7 @@ const state = {
   showGuides:   false,
   playing:      true,
   format:       'ig',
-  posterSlide:     1,
+  posterSlide:     0,
   showExtraLogos:  true
 };
 
@@ -297,7 +297,7 @@ const sketch = (p) => {
     const [bgR, bgG, bgB] = hexRgb(state.preset.bg);
     p.background(bgR, bgG, bgB);
 
-    if (currentAnimation && state.format !== 'banner' && state.posterSlide === 1) {
+    if (currentAnimation && state.format !== 'banner' && (state.posterSlide === 0 || state.posterSlide === 1)) {
       p.push();
       const opa = (state.anim.opacity / 100) * fadeOpacity;
       p.drawingContext.globalAlpha = Math.max(0, Math.min(1, opa));
@@ -611,10 +611,133 @@ function drawLogos(p) {
    ===================================================== */
 function drawEditorialContent(p) {
   if (state.grid.show) drawGrid(p);
-  if      (state.posterSlide === 1) { drawSlide1(p); }
+  if      (state.posterSlide === 0) { drawSlide0(p); }
+  else if (state.posterSlide === 1) { drawSlide1(p); }
   else if (state.posterSlide === 2) { drawInfoBlock(p); }
   else if (state.posterSlide === 3) { drawLogosCentered(p); }
   if (state.showGuides) drawGuides(p);
+}
+
+function drawSlide0(p) {
+  const mx = state.layout.marginX;
+  const my = state.layout.marginY;
+  const fg = state.preset.fg;
+  const bg = state.preset.bg;
+  const [fR, fG, fB] = hexRgb(fg);
+
+  for (const name of LOGO_ORDER) {
+    const c = _logosImgCache[name];
+    if (!c || c.color !== fg || (name === 'processingFoundation' && c.bg !== bg)) _buildLogoImg(name, fg);
+  }
+
+  p.drawingContext.save();
+  p.drawingContext.globalAlpha = 1;
+
+  // ── Título ──
+  const titleY   = my + 40;
+  const fontSize = 118;
+  const lh       = 110;
+  p.noStroke();
+  p.drawingContext.font          = `700 ${fontSize}px 'workfaaad-a', monospace`;
+  p.drawingContext.textBaseline  = 'top';
+  p.drawingContext.textAlign     = 'left';
+  p.drawingContext.letterSpacing = '0px';
+  for (let i = 0; i < TITLE_LINES.length; i++) {
+    const line  = TITLE_LINES[i];
+    const lineY = titleY + i * lh;
+    if (line.startsWith('/*')) {
+      const prefix  = '/*';
+      const prefixW = p.drawingContext.measureText(prefix).width;
+      p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.22)`;
+      p.drawingContext.fillText(prefix, mx, lineY);
+      p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},1)`;
+      p.drawingContext.fillText(line.slice(2), mx + prefixW, lineY);
+    } else {
+      p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},1)`;
+      p.drawingContext.fillText(line, mx, lineY);
+    }
+  }
+
+  // ── Bloque de info ──
+  const infoSize = 24;
+  const infoLh   = infoSize * 1.55;
+  const indent   = mx + infoSize * 1.2;
+  const valW     = CANVAS_W - indent - mx;
+  let   y        = titleY + TITLE_LINES.length * lh + 36;
+
+  p.drawingContext.font          = `normal ${infoSize}px 'Necto Mono', monospace`;
+  p.drawingContext.letterSpacing = '0px';
+  p.drawingContext.textBaseline  = 'alphabetic';
+  p.drawingContext.textAlign     = 'left';
+  p.drawingContext.fillStyle     = `rgba(${fR},${fG},${fB},1)`;
+
+  p.drawingContext.fillText('{', mx, y);
+  y += infoLh;
+
+  for (let i = 0; i < INFO_LINES.length; i++) {
+    const line   = INFO_LINES[i];
+    const colon  = line.indexOf(':');
+    const isLast = i === INFO_LINES.length - 1;
+    if (colon > -1) {
+      const key     = '"' + line.slice(0, colon).trim() + '": ';
+      const val     = '"' + line.slice(colon + 1).trim() + '"' + (isLast ? '' : ',');
+      const keyW    = p.drawingContext.measureText(key).width;
+      const wrapped = wrapText(p, val, valW - keyW);
+      p.drawingContext.fillText(key, indent, y);
+      p.drawingContext.fillText(wrapped[0], indent + keyW, y);
+      y += infoLh;
+      for (let li = 1; li < wrapped.length; li++) {
+        p.drawingContext.fillText(wrapped[li], indent + keyW, y);
+        y += infoLh;
+      }
+    } else {
+      const wrapped = wrapText(p, '"' + line + '"' + (isLast ? '' : ','), CANVAS_W - indent - mx);
+      for (const wl of wrapped) {
+        p.drawingContext.fillText(wl, indent, y);
+        y += infoLh;
+      }
+    }
+  }
+  p.drawingContext.fillText('}', mx, y);
+
+  p.drawingContext.restore();
+
+  // ── 4 logos en la parte inferior (borde de la grilla) ──
+  const gridBottom = CANVAS_H - my;
+  const logoH      = 90;
+  const logoY      = gridBottom - logoH;
+  const ctx        = p.drawingContext;
+
+  const cFaad = _logosImgCache['faad_lockup-principal'];
+  const faadW = (cFaad && cFaad.img.naturalWidth) ? logoH * (cFaad.img.naturalWidth / cFaad.img.naturalHeight) : 0;
+  if (cFaad && cFaad.img.complete && faadW > 0) {
+    ctx.drawImage(cFaad.img, 40, CANVAS_H - 10 - logoH, faadW, logoH);
+  }
+
+  if (state.showExtraLogos) {
+    const extraLogos  = ['LID', 'crtic', 'processingFoundation'];
+    const extraScales = { LID: 0.72, crtic: 1.0, processingFoundation: 1.0 };
+    const extraWidths = extraLogos.map(name => {
+      const c = _logosImgCache[name];
+      if (!c || !c.img.complete || c.img.naturalWidth === 0) return 0;
+      return logoH * extraScales[name] * (c.img.naturalWidth / c.img.naturalHeight);
+    });
+    const totalExtraW = extraWidths.reduce((a, w) => a + w, 0);
+    const rightEdge   = CANVAS_W - mx;
+    const spaceAfter  = rightEdge - (mx + faadW);
+    const gap         = (spaceAfter - totalExtraW) / extraLogos.length;
+    let x = mx + faadW + gap;
+    for (let i = 0; i < extraLogos.length; i++) {
+      const name = extraLogos[i];
+      const c    = _logosImgCache[name];
+      const h    = logoH * extraScales[name];
+      const w    = extraWidths[i];
+      if (c && c.img.complete && c.img.naturalWidth > 0 && w > 0) {
+        ctx.drawImage(c.img, x, logoY + (logoH - h), w, h);
+      }
+      x += w + gap;
+    }
+  }
 }
 
 function drawSlide1(p) {
@@ -687,7 +810,7 @@ function drawSlide1(p) {
   const cFaad  = _logosImgCache['faad_lockup-principal'];
   const faadW  = (cFaad && cFaad.img.naturalWidth) ? logoH * (cFaad.img.naturalWidth / cFaad.img.naturalHeight) : 0;
   if (cFaad && cFaad.img.complete && faadW > 0) {
-    ctx.drawImage(cFaad.img, mx - 12, logoY + 20, faadW, logoH);
+    ctx.drawImage(cFaad.img, 40, CANVAS_H - 10 - logoH, faadW, logoH);
   }
 
   // 3 logos extra distribuidos con espaciado igual en el espacio restante
@@ -1704,11 +1827,11 @@ function updateProgress(ratio, msg) {
 /* =====================================================
    INICIALIZACIÓN
    ===================================================== */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // Filtrar paletas WCAG programáticamente (excluye cualquiera que no cumpla 4.5:1)
   WCAG_PALETTES = WCAG_PALETTES_DEF.filter(p => meetsAA(p.bg, p.fg));
 
-  initLogos();
+  await initLogos();
   p5Instance = new p5(sketch);
   setTimeout(resizeCanvasWrapper, 80);
   bindControls();
