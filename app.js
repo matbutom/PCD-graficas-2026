@@ -708,13 +708,13 @@ function drawSlide0(p) {
   const logoY      = gridBottom - logoH;
   const ctx        = p.drawingContext;
 
-  const cFaad = _logosImgCache['faad_lockup-principal'];
-  const faadW = (cFaad && cFaad.img.naturalWidth) ? logoH * (cFaad.img.naturalWidth / cFaad.img.naturalHeight) : 0;
-  if (cFaad && cFaad.img.complete && faadW > 0) {
-    ctx.drawImage(cFaad.img, 40, CANVAS_H - 10 - logoH, faadW, logoH);
-  }
-
   if (state.showExtraLogos) {
+    const cFaad = _logosImgCache['faad_lockup-principal'];
+    const faadW = (cFaad && cFaad.img.naturalWidth) ? logoH * (cFaad.img.naturalWidth / cFaad.img.naturalHeight) : 0;
+    if (cFaad && cFaad.img.complete && faadW > 0) {
+      ctx.drawImage(cFaad.img, 40, CANVAS_H - 10 - logoH, faadW, logoH);
+    }
+
     const extraLogos  = ['LID', 'crtic', 'processingFoundation'];
     const extraScales = { LID: 0.72, crtic: 1.0, processingFoundation: 1.0 };
     const extraWidths = extraLogos.map(name => {
@@ -758,8 +758,6 @@ function drawSlide1(p) {
   const tagH = 55;
   p.push();
   p.noStroke();
-  p.fill(fR, fG, fB, 18);
-  p.rect(0, tagY, CANVAS_W, tagH);
   p.drawingContext.font          = `400 20px 'Necto Mono', monospace`;
   p.drawingContext.letterSpacing = '2.4px';
   p.drawingContext.textBaseline  = 'middle';
@@ -806,15 +804,13 @@ function drawSlide1(p) {
   const logoY      = gridBottom - logoH;
   const ctx        = p.drawingContext;
 
-  // FAAD fijo en el borde izquierdo de la grilla
-  const cFaad  = _logosImgCache['faad_lockup-principal'];
-  const faadW  = (cFaad && cFaad.img.naturalWidth) ? logoH * (cFaad.img.naturalWidth / cFaad.img.naturalHeight) : 0;
-  if (cFaad && cFaad.img.complete && faadW > 0) {
-    ctx.drawImage(cFaad.img, 40, CANVAS_H - 10 - logoH, faadW, logoH);
-  }
-
-  // 3 logos extra distribuidos con espaciado igual en el espacio restante
   if (state.showExtraLogos) {
+    const cFaad  = _logosImgCache['faad_lockup-principal'];
+    const faadW  = (cFaad && cFaad.img.naturalWidth) ? logoH * (cFaad.img.naturalWidth / cFaad.img.naturalHeight) : 0;
+    if (cFaad && cFaad.img.complete && faadW > 0) {
+      ctx.drawImage(cFaad.img, 40, CANVAS_H - 10 - logoH, faadW, logoH);
+    }
+
     const extraLogos  = ['LID', 'crtic', 'processingFoundation'];
     const extraScales = { LID: 0.90, crtic: 1.0, processingFoundation: 1.0 };
     const extraWidths = extraLogos.map(name => {
@@ -823,10 +819,9 @@ function drawSlide1(p) {
       return logoH * extraScales[name] * (c.img.naturalWidth / c.img.naturalHeight);
     });
     const totalExtraW = extraWidths.reduce((a, w) => a + w, 0);
-    // Espacio disponible desde el borde derecho del FAAD hasta el borde derecho de la grilla
     const rightEdge   = CANVAS_W - mx;
     const spaceAfter  = rightEdge - (mx + faadW);
-    const gap         = (spaceAfter - totalExtraW) / extraLogos.length; // n gaps incluyendo el de separación con FAAD
+    const gap         = (spaceAfter - totalExtraW) / extraLogos.length;
     let x = mx + faadW + gap;
     for (let i = 0; i < extraLogos.length; i++) {
       const name = extraLogos[i];
@@ -1018,10 +1013,10 @@ function switchFormat(fmt) {
 
 function drawGrid(p) {
   const { cols, rows, weight } = state.grid;
-  const gx   = state.layout.marginX;
-  const gy   = state.layout.marginY;
-  const gw   = CANVAS_W - 2 * gx;
-  const gh   = CANVAS_H - 2 * gy;
+  const gx   = 0;
+  const gy   = 0;
+  const gw   = CANVAS_W;
+  const gh   = CANVAS_H;
   const opa  = state.preset.gridOpacity;
   const [fR, fG, fB] = hexRgb(state.preset.fg);
 
@@ -1140,98 +1135,121 @@ function drawInfoBlock(p) {
   const mx     = state.layout.marginX;
   const my     = state.layout.marginY;
   const indent = mx + size * 1.2;
-  const maxW   = CANVAS_W - mx * 2;
   const valW   = CANVAS_W - indent - mx;
   const [fR, fG, fB] = hexRgb(state.preset.fg);
 
+  const topLines    = INFO_LINES.slice(0, 4);  // Evento → Descripción
+  const bottomLines = INFO_LINES.slice(4);     // Llamado a → fechas
+
+  const ctx = p.drawingContext;
   p.noStroke();
-  p.drawingContext.save();
-  p.drawingContext.font          = `normal ${size}px 'Necto Mono', monospace`;
-  p.drawingContext.letterSpacing = '0px';
-  p.drawingContext.textBaseline  = 'alphabetic';
-  p.drawingContext.textAlign     = 'left';
-  p.drawingContext.fillStyle     = `rgba(${fR},${fG},${fB},1.0)`;
+  ctx.save();
+  ctx.letterSpacing = '0px';
+  ctx.textBaseline  = 'alphabetic';
+  ctx.textAlign     = 'left';
+  ctx.fillStyle     = `rgba(${fR},${fG},${fB},1.0)`;
 
-  let y = my + size;
-
-  p.drawingContext.fillText('{', mx, y);
-  y += lh;
-
-  for (let i = 0; i < INFO_LINES.length; i++) {
-    const line   = INFO_LINES[i];
-    const colon  = line.indexOf(':');
-    const isLast = i === INFO_LINES.length - 1;
-
-    if (colon > -1) {
-      const key     = '"' + line.slice(0, colon).trim() + '": ';
-      const val     = '"' + line.slice(colon + 1).trim() + '"' + (isLast ? '' : ',');
-      const keyW    = p.drawingContext.measureText(key).width;
-      const inlineW = valW - keyW;
-
-      // key + first value chunk on same line
-      p.drawingContext.fillText(key, indent, y);
-      const wrapped = wrapText(p, val, inlineW);
-      p.drawingContext.fillText(wrapped[0], indent + keyW, y);
-      y += lh;
-      for (let li = 1; li < wrapped.length; li++) {
-        p.drawingContext.fillText(wrapped[li], indent + keyW, y);
-        y += lh;
-      }
-    } else {
-      const fullLine = '  "' + line + '"' + (isLast ? '' : ',');
-      const wrapped  = wrapText(p, fullLine, maxW);
-      for (const wl of wrapped) {
-        p.drawingContext.fillText(wl, indent, y);
-        y += lh;
+  // Calcula el alto en px que ocupa un array de líneas INFO_LINES
+  function blockHeight(lines) {
+    let h = 0;
+    for (const line of lines) {
+      const colon = line.indexOf(':');
+      if (colon > -1) {
+        const key = '"' + line.slice(0, colon).trim() + '": ';
+        ctx.font = `700 ${size}px 'Necto Mono', monospace`;
+        const keyW = ctx.measureText(key).width;
+        ctx.font = `normal ${size}px 'Necto Mono', monospace`;
+        h += lh * wrapText(p, '"' + line.slice(colon + 1).trim() + '"', valW - keyW).length;
+      } else {
+        ctx.font = `normal ${size}px 'Necto Mono', monospace`;
+        h += lh * wrapText(p, '"' + line + '"', valW).length;
       }
     }
+    return h;
   }
 
-  p.drawingContext.fillText('}', mx, y);
-  p.drawingContext.restore();
+  // Dibuja un array de líneas INFO_LINES con keys en bold; retorna el y final
+  function drawLines(lines, startY, isLastGroup) {
+    let y = startY;
+    for (let i = 0; i < lines.length; i++) {
+      const line   = lines[i];
+      const colon  = line.indexOf(':');
+      const isLast = isLastGroup && i === lines.length - 1;
+      if (colon > -1) {
+        const key     = '"' + line.slice(0, colon).trim() + '": ';
+        const val     = '"' + line.slice(colon + 1).trim() + '"' + (isLast ? '' : ',');
+        ctx.font      = `700 ${size}px 'Necto Mono', monospace`;
+        const keyW    = ctx.measureText(key).width;
+        ctx.fillText(key, indent, y);
+        ctx.font      = `normal ${size}px 'Necto Mono', monospace`;
+        const wrapped = wrapText(p, val, valW - keyW);
+        ctx.fillText(wrapped[0], indent + keyW, y);
+        y += lh;
+        for (let li = 1; li < wrapped.length; li++) {
+          ctx.fillText(wrapped[li], indent + keyW, y);
+          y += lh;
+        }
+      } else {
+        ctx.font      = `normal ${size}px 'Necto Mono', monospace`;
+        const val     = '"' + line + '"' + (isLast ? '' : ',');
+        const wrapped = wrapText(p, val, valW);
+        for (const wl of wrapped) { ctx.fillText(wl, indent, y); y += lh; }
+      }
+    }
+    return y;
+  }
 
-  // Píxeles animados en las 2 últimas filas de la grilla (por detrás del logo)
-  drawSlide2Pixels(p);
+  // ── Bloque superior ──
+  ctx.font = `normal ${size}px 'Necto Mono', monospace`;
+  let y = my + size;
+  ctx.fillText('{', mx, y);
+  y += lh;
+  const topEndY = drawLines(topLines, y, false);
 
-  // Logo FaAAD — misma posición exacta que slide 1 (encima de los píxeles)
-  const logoH    = 90;
-  const logoName = 'faad_lockup-principal';
-  // Regenerar si cambió el color (igual que drawLogos)
-  const fg = state.preset.fg;
-  const lc = _logosImgCache[logoName];
-  if (!lc || lc.color !== fg) _buildLogoImg(logoName, fg);
-  const c = _logosImgCache[logoName];
-  if (c && c.img.complete && c.img.naturalWidth > 0) {
-    const w    = logoH * (c.img.naturalWidth / c.img.naturalHeight);
-    const logoX = 40;
-    const logoY = CANVAS_H - 10 - logoH;
-    p.drawingContext.drawImage(c.img, logoX, logoY, w, logoH);
+  // ── Bloque inferior — anclado desde arriba del logo ──
+  const logoTop   = state.showExtraLogos ? CANVAS_H - 10 - 90 : CANVAS_H - my;
+  const botH      = blockHeight(bottomLines) + lh; // líneas + llave de cierre
+  const bottomY   = logoTop - botH - 24;
+
+  // ── Píxeles animados en el espacio entre bloques ──
+  drawSlide2Pixels(p, topEndY + 12, bottomY - 80);
+
+  // ── Dibujar bloque inferior ──
+  ctx.fillStyle = `rgba(${fR},${fG},${fB},1.0)`;
+  const afterY  = drawLines(bottomLines, bottomY, true);
+  ctx.font      = `normal ${size}px 'Necto Mono', monospace`;
+  ctx.fillText('}', mx, afterY);
+
+  ctx.restore();
+
+  if (state.showExtraLogos) {
+    const logoH    = 90;
+    const logoName = 'faad_lockup-principal';
+    const fg = state.preset.fg;
+    const lc = _logosImgCache[logoName];
+    if (!lc || lc.color !== fg) _buildLogoImg(logoName, fg);
+    const c = _logosImgCache[logoName];
+    if (c && c.img.complete && c.img.naturalWidth > 0) {
+      const w = logoH * (c.img.naturalWidth / c.img.naturalHeight);
+      p.drawingContext.drawImage(c.img, 40, CANVAS_H - 10 - logoH, w, logoH);
+    }
   }
 }
 
-function drawSlide2Pixels(p) {
-  const { cols, rows } = state.grid;
-  const gx    = state.layout.marginX;
-  const gy    = state.layout.marginY;
-  const gw    = CANVAS_W - 2 * gx;
-  const gh    = CANVAS_H - 2 * gy;
-  const cellH = gh / rows;
+function drawSlide2Pixels(p, areaStartY, areaEndY) {
+  const areaX = 0;
+  const areaW = CANVAS_W;
+  const areaH = areaEndY - areaStartY;
+  if (areaH < 20) return;
 
-  // Últimas 3.5 filas de la grilla
-  const pixelRows = 2.3;
-  const areaY = gy + (rows - pixelRows) * cellH;
-  const areaH = pixelRows * cellH;
-  const areaX = gx;
-  const areaW = gw;
+  const pixSize = 40;
+  const pCols   = Math.floor(areaW / pixSize);
+  const pRows   = Math.floor(areaH / pixSize);
+  if (pCols < 1 || pRows < 1) return;
 
-  const pixSize  = 40;
-  const pCols    = Math.floor(areaW / pixSize);
-  const pRows    = Math.floor(areaH / pixSize);
-  const bottom   = gy + gh; // borde inferior exacto de la grilla
-  const startY   = bottom - pRows * pixSize; // anclar desde abajo
-  const t        = p5Instance.frameCount * 0.018;
+  const t = p5Instance.frameCount * 0.018;
   const [fR, fG, fB] = hexRgb(state.preset.fg);
-  const opa      = Math.min(1, (state.preset.gridOpacity / 100) * 2.2);
+  const opa = Math.min(1, (state.preset.gridOpacity / 100) * 2.2);
 
   p.drawingContext.save();
   for (let row = 0; row < pRows; row++) {
@@ -1242,7 +1260,7 @@ function drawSlide2Pixels(p) {
         p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(3)})`;
         p.drawingContext.fillRect(
           areaX + col * pixSize,
-          startY + row * pixSize,
+          areaStartY + row * pixSize,
           pixSize - 2,
           pixSize - 2
         );
@@ -1580,6 +1598,7 @@ function bindControls() {
   });
   onChange('poster-slide-select', e => {
     state.posterSlide = Number(e.target.value);
+    if (currentAnimation) currentAnimation.reset();
   });
   onCheck('extra-logos-toggle', e => {
     state.showExtraLogos = e.target.checked;
