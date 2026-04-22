@@ -248,11 +248,12 @@ const state = {
     }
   },
 
-  showGuides:   false,
-  playing:      true,
-  format:       'ig',
-  posterSlide:     0,
-  showExtraLogos:  true
+  showGuides:          false,
+  playing:             true,
+  format:              'ig',
+  posterSlide:         0,
+  showExtraLogos:      true,
+  showConvocatoriaTag: true
 };
 
 // Últimos colores válidos (usados para revertir cambios que rompen WCAG AA)
@@ -756,16 +757,18 @@ function drawSlide1(p) {
   // ── Tag strip ──
   const tagY = 0;
   const tagH = 55;
-  p.push();
-  p.noStroke();
-  p.drawingContext.font          = `400 20px 'Necto Mono', monospace`;
-  p.drawingContext.letterSpacing = '2.4px';
-  p.drawingContext.textBaseline  = 'middle';
-  p.drawingContext.textAlign     = 'left';
-  p.drawingContext.fillStyle     = `rgba(${fR},${fG},${fB},0.75)`;
-  p.drawingContext.fillText('CONVOCATORIA ABIERTA', mx + 12, tagH / 2);
-  p.drawingContext.letterSpacing = '0px';
-  p.pop();
+  if (state.showConvocatoriaTag) {
+    p.push();
+    p.noStroke();
+    p.drawingContext.font          = `400 20px 'Necto Mono', monospace`;
+    p.drawingContext.letterSpacing = '2.4px';
+    p.drawingContext.textBaseline  = 'middle';
+    p.drawingContext.textAlign     = 'left';
+    p.drawingContext.fillStyle     = `rgba(${fR},${fG},${fB},0.75)`;
+    p.drawingContext.fillText('CONVOCATORIA ABIERTA', mx + 12, tagH / 2);
+    p.drawingContext.letterSpacing = '0px';
+    p.pop();
+  }
 
   // ── Título ──
   const titleX      = mx;
@@ -1592,9 +1595,11 @@ function bindControls() {
     const bc  = document.getElementById('banner-controls');
     const sc  = document.getElementById('poster-slide-controls');
     const elc = document.getElementById('extra-logos-controls');
+    const ctc = document.getElementById('convocatoria-tag-controls');
     if (bc)  bc.style.display  = isBanner ? '' : 'none';
     if (sc)  sc.style.display  = isBanner ? 'none' : '';
     if (elc) elc.style.display = isBanner ? 'none' : '';
+    if (ctc) ctc.style.display = isBanner ? 'none' : '';
   });
   onChange('poster-slide-select', e => {
     state.posterSlide = Number(e.target.value);
@@ -1602,6 +1607,9 @@ function bindControls() {
   });
   onCheck('extra-logos-toggle', e => {
     state.showExtraLogos = e.target.checked;
+  });
+  onCheck('convocatoria-tag-toggle', e => {
+    state.showConvocatoriaTag = e.target.checked;
   });
   onClick('btn-randomize-banner', () => { randomizeBannerGrid(); showToast('Banner aleatorio'); });
 
