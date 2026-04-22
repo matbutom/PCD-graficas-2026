@@ -91,7 +91,7 @@ const INFO_LINES = [
   'Lugar: Salvador Sanfuentes 2221',
   'Descripción: Sé parte del evento que busca visibilizar prácticas emergentes, conectar comunidad, academia e industria y generar un espacio de encuentro en torno al uso creativo del código.',
   'Llamado a: Estudiantes pre/postgrado, Investigadores, Creadores, Equipos interdisciplinarios',
-  'Fecha apertura convocatoria: 17 Abril 2026',
+  'Fecha apertura convocatoria: 22 Abril 2026',
   'Fecha cierre convocatoria: 12 Mayo 2026'
 ];
 
