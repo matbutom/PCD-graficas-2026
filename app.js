@@ -91,7 +91,7 @@ const INFO_LINES = [
   'Lugar: Salvador Sanfuentes 2221',
   'Descripción: Sé parte del evento que busca visibilizar prácticas emergentes, conectar comunidad, academia e industria y generar un espacio de encuentro en torno al uso creativo del código.',
   'Llamado a: Estudiantes pre/postgrado, Investigadores, Creadores, Equipos interdisciplinarios',
-  'Fecha apertura convocatoria: 22 Abril 2026',
+  'Fecha apertura convocatoria: 23 Abril 2026',
   'Fecha cierre convocatoria: 12 Mayo 2026'
 ];
 
@@ -666,12 +666,12 @@ function drawSlide0(p) {
   const valW     = CANVAS_W - indent - mx;
   let   y        = titleY + TITLE_LINES.length * lh + 36;
 
-  p.drawingContext.font          = `normal ${infoSize}px 'Necto Mono', monospace`;
   p.drawingContext.letterSpacing = '0px';
   p.drawingContext.textBaseline  = 'alphabetic';
   p.drawingContext.textAlign     = 'left';
   p.drawingContext.fillStyle     = `rgba(${fR},${fG},${fB},1)`;
 
+  p.drawingContext.font = `normal ${infoSize}px 'Necto Mono', monospace`;
   p.drawingContext.fillText('{', mx, y);
   y += infoLh;
 
@@ -680,11 +680,13 @@ function drawSlide0(p) {
     const colon  = line.indexOf(':');
     const isLast = i === INFO_LINES.length - 1;
     if (colon > -1) {
-      const key     = '"' + line.slice(0, colon).trim() + '": ';
-      const val     = '"' + line.slice(colon + 1).trim() + '"' + (isLast ? '' : ',');
-      const keyW    = p.drawingContext.measureText(key).width;
-      const wrapped = wrapText(p, val, valW - keyW);
+      const key  = '"' + line.slice(0, colon).trim() + '": ';
+      const val  = '"' + line.slice(colon + 1).trim() + '"' + (isLast ? '' : ',');
+      p.drawingContext.font = `700 ${infoSize}px 'Necto Mono', monospace`;
+      const keyW = p.drawingContext.measureText(key).width;
       p.drawingContext.fillText(key, indent, y);
+      p.drawingContext.font = `normal ${infoSize}px 'Necto Mono', monospace`;
+      const wrapped = wrapText(p, val, valW - keyW);
       p.drawingContext.fillText(wrapped[0], indent + keyW, y);
       y += infoLh;
       for (let li = 1; li < wrapped.length; li++) {
@@ -692,6 +694,7 @@ function drawSlide0(p) {
         y += infoLh;
       }
     } else {
+      p.drawingContext.font = `normal ${infoSize}px 'Necto Mono', monospace`;
       const wrapped = wrapText(p, '"' + line + '"' + (isLast ? '' : ','), CANVAS_W - indent - mx);
       for (const wl of wrapped) {
         p.drawingContext.fillText(wl, indent, y);
@@ -699,6 +702,7 @@ function drawSlide0(p) {
       }
     }
   }
+  p.drawingContext.font = `normal ${infoSize}px 'Necto Mono', monospace`;
   p.drawingContext.fillText('}', mx, y);
 
   p.drawingContext.restore();
