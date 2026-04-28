@@ -95,6 +95,43 @@ const INFO_LINES = [
   'Fecha cierre convocatoria: 12 Mayo 2026'
 ];
 
+const ANIM_OPTIONS_POSTER = [
+  { value: 'letter-physics',       label: 'Letter Physics' },
+  { value: 'particle-network',     label: 'Particle Network' },
+  { value: 'flow-field',           label: 'Flow Field' },
+  { value: 'grid-distortion',      label: 'Grid Distortion' },
+  { value: 'bouncing-shapes',      label: 'Bouncing Shapes' },
+  { value: 'wave-interference',    label: 'Wave Interference' },
+  { value: 'code-rain',            label: 'Code Rain' },
+  { value: 'constellation',        label: 'Constellation' },
+  { value: 'elastic-mesh',         label: 'Elastic Mesh' },
+  { value: 'rotating-typography',  label: 'Rotating Typography' },
+  { value: 'pixel-texture',        label: 'Pixel Texture' },
+  { value: 'glyph-flow-field',     label: 'Glyph Flow Field' },
+  { value: 'slot-drum-typography', label: 'Slot Drum Typography' },
+];
+
+const ANIM_OPTIONS_SLIDE4 = [
+  { value: 'glitch-blocks',    label: 'Glitch Blocks' },
+  { value: 'pixel-melt',       label: 'Pixel Melt' },
+  { value: 'noise-corruption', label: 'Noise Corruption' },
+  { value: 'scanline-drift',   label: 'Scanline Drift' },
+  { value: 'data-moshing',     label: 'Data Moshing' },
+];
+
+const PROJECT_CATEGORIES = [
+  'Instalaciones interactivas',
+  'Visualización de datos',
+  'Arte generativo',
+  'Sonido y música con código',
+  'Wearables y e-textiles',
+  'Proyectos con IA creativa',
+  'Experiencias inmersivas (AR/VR)',
+  'Hardware y physical computing',
+  'Diseño paramétrico y fabricación',
+  'Narrativas interactivas'
+];
+
 /* =====================================================
    LAYOUT DEFAULT
    ===================================================== */
@@ -171,6 +208,7 @@ const state = {
     font:        'Space Mono',
     fontWeight:  '700',
     blendMode:   'source-over',
+    slide4Anim:  'glitch-blocks',
     params: {
       'letter-physics': {
         text:       'CONVOCATORIA ABIERTA',
@@ -265,6 +303,7 @@ let lastValidFg = '#000000';
    ===================================================== */
 let p5Instance       = null;
 let currentAnimation = null;
+let slide4Animation  = null;
 let fpsFrames        = 0;
 let fpsLastTime      = performance.now();
 
@@ -298,12 +337,14 @@ const sketch = (p) => {
     const [bgR, bgG, bgB] = hexRgb(state.preset.bg);
     p.background(bgR, bgG, bgB);
 
-    if (currentAnimation && state.format !== 'banner' && (state.posterSlide === 0 || state.posterSlide === 1)) {
+    const _activeAnim = (state.posterSlide === 4) ? slide4Animation : currentAnimation;
+    if (_activeAnim && state.format !== 'banner' && [0, 1, 4, 5].includes(state.posterSlide)) {
       p.push();
-      const opa = (state.anim.opacity / 100) * fadeOpacity;
+      let opa = (state.anim.opacity / 100) * fadeOpacity;
+      if (state.posterSlide === 5) opa *= 0.3;
       p.drawingContext.globalAlpha = Math.max(0, Math.min(1, opa));
       p.drawingContext.globalCompositeOperation = state.anim.blendMode || 'source-over';
-      currentAnimation.draw();
+      _activeAnim.draw();
       p.drawingContext.globalCompositeOperation = 'source-over';
       p.drawingContext.globalAlpha = 1;
       p.pop();
@@ -335,18 +376,25 @@ const sketch = (p) => {
 };
 
 function dispatchMouse(p, type) {
-  if (!currentAnimation) return;
+  const anim = (state.posterSlide === 4) ? slide4Animation : currentAnimation;
+  if (!anim) return;
   const canvasEl = document.querySelector('#canvas-container canvas');
   if (!canvasEl) return;
   const scaleX = CANVAS_W / canvasEl.offsetWidth;
   const scaleY = CANVAS_H / canvasEl.offsetHeight;
-  currentAnimation.handleMouse(p.mouseX * scaleX, p.mouseY * scaleY, type);
+  anim.handleMouse(p.mouseX * scaleX, p.mouseY * scaleY, type);
 }
 
 function initAnimation() {
   const AnimClass = ANIMATIONS[state.anim.current];
   if (!AnimClass || !p5Instance) return;
   currentAnimation = new AnimClass(p5Instance, state);
+}
+
+function initSlide4Animation() {
+  const AnimClass = ANIMATIONS_SLIDE4[state.anim.slide4Anim];
+  if (!AnimClass || !p5Instance) return;
+  slide4Animation = new AnimClass(p5Instance, state);
 }
 
 function switchAnimation(name) {
@@ -611,11 +659,13 @@ function drawLogos(p) {
    RENDER EDITORIAL
    ===================================================== */
 function drawEditorialContent(p) {
-  if (state.grid.show) drawGrid(p);
+  if (![4, 5].includes(state.posterSlide) && state.grid.show) drawGrid(p);
   if      (state.posterSlide === 0) { drawSlide0(p); }
   else if (state.posterSlide === 1) { drawSlide1(p); }
   else if (state.posterSlide === 2) { drawInfoBlock(p); }
   else if (state.posterSlide === 3) { drawLogosCentered(p); }
+  else if (state.posterSlide === 4) { drawSlide4(p); }
+  else if (state.posterSlide === 5) { drawSlide5(p); }
   if (state.showGuides) drawGuides(p);
 }
 
@@ -866,6 +916,233 @@ function drawLogosCentered(p) {
     ctx.drawImage(c.img, x, y, w, logoH);
     y += logoH + pad;
   }
+}
+
+/* =====================================================
+   SLIDES 4 Y 5 — Segundo visualizador "Convocatoria Visual"
+   ===================================================== */
+function drawTextBlock(p, text, x, y, fontSize, opts = {}) {
+  const ctx     = p.drawingContext;
+  const [bgR, bgG, bgB] = hexRgb(state.preset.bg);
+  const [fgR, fgG, fgB] = hexRgb(state.preset.fg);
+  const fontStr = opts.font    || `700 ${fontSize}px '${state.title.font}', monospace`;
+  const padding = opts.padding !== undefined ? opts.padding : 16;
+  const bgAlpha = opts.bgAlpha !== undefined ? opts.bgAlpha : 220;
+  const align   = opts.align   || 'left';
+
+  ctx.save();
+  ctx.font         = fontStr;
+  ctx.textBaseline = 'top';
+  ctx.textAlign    = align;
+
+  const textW = ctx.measureText(text).width;
+  const textH = fontSize * 1.2;
+  const bx    = align === 'left' ? x - padding : x - textW / 2 - padding;
+  const by    = y - padding;
+
+  ctx.fillStyle = `rgba(${bgR},${bgG},${bgB},${(bgAlpha / 255).toFixed(3)})`;
+  ctx.fillRect(bx, by, textW + padding * 2, textH + padding * 2);
+  ctx.fillStyle = `rgb(${fgR},${fgG},${fgB})`;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+
+  return textH + padding * 2;
+}
+
+function _drawLogosAt(p, yBase, logoH) {
+  const fg = state.preset.fg;
+  const bg = state.preset.bg;
+  const m  = state.layout.marginX;
+
+  for (const name of LOGO_ORDER) {
+    const c = _logosImgCache[name];
+    if (!c || c.color !== fg || (name === 'processingFoundation' && c.bg !== bg)) _buildLogoImg(name, fg);
+  }
+
+  const LOGO_SCALE = { 'faad_lockup-principal': 0.80, LID: 0.80, crtic: 1.0, processingFoundation: 1.0 };
+  const ctx    = p.drawingContext;
+  const availW = CANVAS_W - 2 * m;
+
+  const logoData = LOGO_ORDER.map(name => {
+    const c = _logosImgCache[name];
+    if (!c || !c.img.complete || c.img.naturalWidth === 0) return { w: 0, h: 0 };
+    const scale = LOGO_SCALE[name] ?? 1.0;
+    const h     = logoH * scale;
+    const w     = h * (c.img.naturalWidth / c.img.naturalHeight);
+    return { w, h };
+  });
+
+  const totalLogosW = logoData.reduce((a, d) => a + d.w, 0);
+  const gap = Math.max(12, (availW - totalLogosW) / (LOGO_ORDER.length + 1));
+
+  let x = m + gap;
+  for (let i = 0; i < LOGO_ORDER.length; i++) {
+    const c = _logosImgCache[LOGO_ORDER[i]];
+    const d = logoData[i];
+    if (c && c.img.complete && c.img.naturalWidth > 0 && d.w > 0) {
+      ctx.drawImage(c.img, x, yBase + (logoH - d.h) / 2, d.w, d.h);
+    }
+    x += d.w + gap;
+  }
+}
+
+function drawSlide4(p) {
+  const mx = state.layout.marginX;
+  const fg = state.preset.fg;
+  const bg = state.preset.bg;
+  const [fR, fG, fB]    = hexRgb(fg);
+  const [bgR, bgG, bgB] = hexRgb(bg);
+  const ctx = p.drawingContext;
+  const pad = 20;
+
+  for (const name of LOGO_ORDER) {
+    const c = _logosImgCache[name];
+    if (!c || c.color !== fg || (name === 'processingFoundation' && c.bg !== bg)) _buildLogoImg(name, fg);
+  }
+
+  // ── Bloque título ──
+  const titleLines4 = ['PROCESSING', 'COMMUNITY', 'DAY — 2026'];
+  const tSz   = 100;
+  const tLh   = 102;
+  const tY    = 640;
+  const tFont = `700 ${tSz}px 'workfaaad-a', monospace`;
+
+  ctx.save();
+  ctx.font = tFont;
+  const tMaxW = Math.max(...titleLines4.map(l => ctx.measureText(l).width));
+  ctx.fillStyle = `rgba(${bgR},${bgG},${bgB},0.87)`;
+  ctx.fillRect(mx - pad, tY - pad, tMaxW + pad * 2, titleLines4.length * tLh + pad * 2);
+  ctx.textBaseline = 'top';
+  ctx.textAlign    = 'left';
+  ctx.fillStyle    = `rgb(${fR},${fG},${fB})`;
+  for (let i = 0; i < titleLines4.length; i++) ctx.fillText(titleLines4[i], mx, tY + i * tLh);
+  ctx.restore();
+
+  // ── CONVOCATORIA ABIERTA ──
+  let cY = tY + titleLines4.length * tLh + 34;
+  const convH = drawTextBlock(p, 'CONVOCATORIA ABIERTA', mx, cY, 54, {
+    font: `700 54px 'workfaaad-a', monospace`, padding: 16, bgAlpha: 222
+  });
+
+  // ── Fecha ──
+  cY += convH + 10;
+  drawTextBlock(p, '23 Abril — 12 Mayo 2026', mx, cY, 28, {
+    font: `normal 28px 'Necto Mono', monospace`, padding: 14, bgAlpha: 210
+  });
+
+  // ── Bottom strip: logos + ubicación ──
+  const logoH  = 80;
+  const stripH = 95;
+  const stripY = CANVAS_H - 10 - stripH;
+
+  p.push();
+  p.noStroke();
+  p.fill(bgR, bgG, bgB, 210);
+  p.rect(0, stripY, CANVAS_W, stripH + 10);
+  p.pop();
+
+  ctx.save();
+  ctx.font         = `normal 20px 'Necto Mono', monospace`;
+  ctx.fillStyle    = `rgb(${fR},${fG},${fB})`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign    = 'right';
+  ctx.fillText('Salvador Sanfuentes 2221, Santiago', CANVAS_W - mx, stripY + stripH / 2);
+  ctx.restore();
+
+  if (state.showExtraLogos) _drawLogosAt(p, stripY + (stripH - logoH) / 2, logoH);
+}
+
+function drawSlide5(p) {
+  const mx = state.layout.marginX;
+  const fg = state.preset.fg;
+  const bg = state.preset.bg;
+  const [fR, fG, fB]    = hexRgb(fg);
+  const [bgR, bgG, bgB] = hexRgb(bg);
+  const ctx = p.drawingContext;
+  const pad = 20;
+
+  for (const name of LOGO_ORDER) {
+    const c = _logosImgCache[name];
+    if (!c || c.color !== fg || (name === 'processingFoundation' && c.bg !== bg)) _buildLogoImg(name, fg);
+  }
+
+  // ── Título ──
+  const titleLines5 = ['¿QUÉ PROYECTOS', 'BUSCAMOS?'];
+  const tSz   = 80;
+  const tLh   = 82;
+  const tY    = 70;
+  const tFont = `700 ${tSz}px 'workfaaad-a', monospace`;
+
+  ctx.save();
+  ctx.font = tFont;
+  const tMaxW = Math.max(...titleLines5.map(l => ctx.measureText(l).width));
+  ctx.fillStyle = `rgba(${bgR},${bgG},${bgB},0.9)`;
+  ctx.fillRect(mx - pad, tY - pad, tMaxW + pad * 2, titleLines5.length * tLh + pad * 2);
+  ctx.textBaseline = 'top';
+  ctx.textAlign    = 'left';
+  ctx.fillStyle    = `rgb(${fR},${fG},${fB})`;
+  for (let i = 0; i < titleLines5.length; i++) ctx.fillText(titleLines5[i], mx, tY + i * tLh);
+  ctx.restore();
+
+  // ── Lista de categorías ──
+  const listFontSize = 27;
+  const listLh  = 43;
+  const listY   = tY + titleLines5.length * tLh + 50;
+  const listH   = PROJECT_CATEGORIES.length * listLh;
+  const listW   = CANVAS_W - 2 * mx;
+
+  p.push();
+  p.noStroke();
+  p.fill(bgR, bgG, bgB, 218);
+  p.rect(mx - pad, listY - pad, listW + pad * 2, listH + pad * 2);
+  p.pop();
+
+  ctx.save();
+  ctx.font         = `normal ${listFontSize}px 'Necto Mono', monospace`;
+  ctx.textBaseline = 'top';
+  ctx.textAlign    = 'left';
+  ctx.fillStyle    = `rgb(${fR},${fG},${fB})`;
+  for (let i = 0; i < PROJECT_CATEGORIES.length; i++) {
+    ctx.fillText('→ ' + PROJECT_CATEGORIES[i], mx, listY + i * listLh);
+  }
+  ctx.restore();
+
+  // ── Bloque de postulación ──
+  const postLines = [
+    'Postula en: Salvador Sanfuentes 2221',
+    'Convocatoria: 23 Abril — 12 Mayo 2026'
+  ];
+  const postFontSize = 24;
+  const postLh = 38;
+  const pY     = listY + listH + 48;
+  const postH  = postLines.length * postLh;
+
+  p.push();
+  p.noStroke();
+  p.fill(bgR, bgG, bgB, 210);
+  p.rect(mx - pad, pY - pad, listW + pad * 2, postH + pad * 2);
+  p.pop();
+
+  ctx.save();
+  ctx.font         = `normal ${postFontSize}px 'Necto Mono', monospace`;
+  ctx.textBaseline = 'top';
+  ctx.textAlign    = 'left';
+  ctx.fillStyle    = `rgb(${fR},${fG},${fB})`;
+  for (let i = 0; i < postLines.length; i++) ctx.fillText(postLines[i], mx, pY + i * postLh);
+  ctx.restore();
+
+  // ── Logos ──
+  const logoH  = 72;
+  const stripH = 88;
+  const stripY = CANVAS_H - 10 - stripH;
+
+  p.push();
+  p.noStroke();
+  p.fill(bgR, bgG, bgB, 210);
+  p.rect(0, stripY, CANVAS_W, stripH + 10);
+  p.pop();
+
+  if (state.showExtraLogos) _drawLogosAt(p, stripY + (stripH - logoH) / 2, logoH);
 }
 
 /* =====================================================
@@ -1573,6 +1850,29 @@ function applyColorPreset(id) {
 }
 
 /* =====================================================
+   SELECTOR DE ANIMACIONES DINÁMICO
+   ===================================================== */
+function rebuildAnimSelect(isSlide4) {
+  const select = document.getElementById('anim-select');
+  if (!select) return;
+  const options      = isSlide4 ? ANIM_OPTIONS_SLIDE4 : ANIM_OPTIONS_POSTER;
+  const currentValue = isSlide4 ? state.anim.slide4Anim : state.anim.current;
+  select.innerHTML   = '';
+  for (const opt of options) {
+    const el       = document.createElement('option');
+    el.value       = opt.value;
+    el.textContent = opt.label;
+    if (opt.value === currentValue) el.selected = true;
+    select.appendChild(el);
+  }
+  if (!options.some(o => o.value === currentValue)) {
+    select.value = options[0].value;
+    if (isSlide4) { state.anim.slide4Anim = options[0].value; initSlide4Animation(); }
+    else          { switchAnimation(options[0].value); }
+  }
+}
+
+/* =====================================================
    BINDINGS
    ===================================================== */
 function bindControls() {
@@ -1606,8 +1906,18 @@ function bindControls() {
     if (ctc) ctc.style.display = isBanner ? 'none' : '';
   });
   onChange('poster-slide-select', e => {
+    const prev     = state.posterSlide;
     state.posterSlide = Number(e.target.value);
-    if (currentAnimation) currentAnimation.reset();
+    const wasSlide4 = prev === 4;
+    const isSlide4  = state.posterSlide === 4;
+    if (wasSlide4 !== isSlide4) rebuildAnimSelect(isSlide4);
+    if (isSlide4) {
+      if (!slide4Animation) initSlide4Animation();
+      else slide4Animation.reset();
+    } else {
+      slide4Animation = null;
+      if (currentAnimation) currentAnimation.reset();
+    }
   });
   onCheck('extra-logos-toggle', e => {
     state.showExtraLogos = e.target.checked;
@@ -1713,26 +2023,37 @@ function bindControls() {
   });
 
   // ——— Animación ———
-  onChange('anim-select', e => { switchAnimation(e.target.value); });
+  onChange('anim-select', e => {
+    if (state.posterSlide === 4) {
+      state.anim.slide4Anim = e.target.value;
+      initSlide4Animation();
+    } else {
+      switchAnimation(e.target.value);
+    }
+  });
   onChange('anim-blend',  e => { state.anim.blendMode = e.target.value; });
   onChange('anim-font',   e => {
     state.anim.font = e.target.value;
-    if (currentAnimation) currentAnimation.reset();
+    const anim = (state.posterSlide === 4) ? slide4Animation : currentAnimation;
+    if (anim) anim.reset();
   });
   slider('anim-speed', 'anim-speed-val', v => { state.anim.speed = v; }, 0.1, 1);
   slider('anim-text-size', 'anim-text-size-val', v => {
     state.anim.textSize = Math.round(v);
-    if (currentAnimation) currentAnimation.reset();
+    const anim = (state.posterSlide === 4) ? slide4Animation : currentAnimation;
+    if (anim) anim.reset();
   });
   onChange('anim-seed', e => {
     state.anim.seed = parseInt(e.target.value) || 0;
-    initAnimation();
+    if (state.posterSlide === 4) initSlide4Animation();
+    else initAnimation();
   });
   onClick('btn-randomize-anim', () => {
     const seed = Math.floor(Math.random() * 99999);
     state.anim.seed = seed;
     el('anim-seed').value = seed;
-    initAnimation();
+    if (state.posterSlide === 4) initSlide4Animation();
+    else initAnimation();
     showToast('Nueva semilla: ' + seed);
   });
 
@@ -1756,7 +2077,8 @@ function bindControls() {
   });
 
   onClick('btn-reset', () => {
-    if (currentAnimation) currentAnimation.reset();
+    const anim = (state.posterSlide === 4) ? slide4Animation : currentAnimation;
+    if (anim) anim.reset();
     showToast('Animación reiniciada');
   });
 
