@@ -230,14 +230,19 @@ class GlitchOverload extends BaseAnimation {
 
     // 2. Caracteres del título — opacos, protagonistas
     const mono = this.state.posterSlide === 5;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 0.8;
     for (let ci = 0; ci < nPal; ci++) {
       const buf = txtBatch[ci];
       if (!buf.s.length) continue;
       const [r, g, b] = mono ? [fR, fG, fB] : this._palette[ci];
-      ctx.fillStyle = (mono || ci === 0)
+      const style = (mono || ci === 0)
         ? `rgb(${r},${g},${b})`
         : `rgba(${r},${g},${b},0.92)`;
+      ctx.fillStyle   = style;
+      ctx.strokeStyle = style;
       for (let k = 0; k < buf.s.length; k++) {
+        ctx.strokeText(buf.s[k], buf.x[k], buf.y[k]);
         ctx.fillText(buf.s[k], buf.x[k], buf.y[k]);
       }
     }
