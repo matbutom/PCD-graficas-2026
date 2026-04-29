@@ -1,387 +1,436 @@
 /* =====================================================
-   ANIMATIONS-SLIDE4.JS — Processing Community Day 2026
-   Fondos abstractos/glitch/pixel para Slide 4 "Hero Visual"
-   Cada clase extiende BaseAnimation (definida en animations.js)
+   ANIMATIONS-SLIDE4.JS — PCD 2026
+   3 animaciones generativas full-canvas. Cada una renderiza
+   fondo + título + texturas + logos. getPosterAlpha() = 0.
    ===================================================== */
 
 /* =====================================================
-   1. GLITCH BLOCKS — Bandas horizontales que se desplazan
-      con aberración cromática y líneas de escaneo
+   1. GLITCH OVERLOAD
+   Grilla de caracteres ASCII que forma las letras.
+   Cada celda parpadea de forma independiente (snap instantáneo).
+   Row-shifts y bloques de color como glitch orgánico.
    ===================================================== */
-class GlitchBlocks extends BaseAnimation {
+class GlitchOverload extends BaseAnimation {
   constructor(p, state) {
     super(p, state);
-    this._frame = 0;
-    this._rowH  = 28;
-    this._gs    = [];
-    this._reset();
+    this.seed   = Math.random() * 99999;
+    this._f     = 0;
+    this._cW    = 9;   // ancho de celda en px
+    this._cH    = 15;  // alto de celda en px
+    this._fSz   = 13;  // tamaño de fuente
+    this._cols  = Math.ceil(CANVAS_W / this._cW);
+    this._rows  = Math.ceil(CANVAS_H / this._cH);
+    this._grid  = null; // Uint8Array: 1=letra, 0=fondo
+    this._on    = null; // Uint8Array: celda visible
+    this._ch    = null; // Uint8Array: índice en charset
+    this._timer = null; // Uint8Array: countdown al próximo flip
+    this._ci    = null; // Uint8Array: índice de color
+    this._palette     = [];
+    this._rowGlitches = [];
+    this._blkGlitches = [];
+    this._chars = Array.from('@#%*|/\\!?01.:;{}[]<>=^~+-');
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+    this._init();
   }
 
-  _reset() {
-    const p = this.p;
-    p.noiseSeed(this.state.anim.seed || 42);
-    p.randomSeed(this.state.anim.seed || 42);
-    this._frame = 0;
-    const rows = Math.ceil(CANVAS_H / this._rowH);
-    this._gs = Array.from({ length: rows }, () => ({
-      shift:       0,
-      active:      false,
-      duration:    0,
-      maxDuration: Math.floor(p.random(2, 9)),
-      maxShift:    p.random(40, 160) * (p.random() > 0.5 ? 1 : -1),
-      nextEvent:   Math.floor(p.random(10, 120))
-    }));
-  }
+  _init() {
+    const p    = this.p;
+    const cW   = this._cW;
+    const cH   = this._cH;
+    const cols = this._cols;
+    const rows = this._rows;
+    const N    = cols * rows;
+    const bufW = cols * cW;
+    const bufH = rows * cH;
 
-  advanceState() {
-    const p   = this.p;
-    const spd = this.state.anim.speed || 2;
-    this._frame++;
+    const [fR, fG, fB]    = this.getFg();
+    const [bgR, bgG, bgB] = this.getBg();
 
-    for (let i = 0; i < this._gs.length; i++) {
-      const gs = this._gs[i];
-      if (gs.active) {
-        gs.duration++;
-        if (gs.duration >= gs.maxDuration) {
-          gs.active = false;
-          gs.shift  = 0;
-          gs.nextEvent    = this._frame + Math.floor(p.random(40, 200));
-          gs.maxDuration  = Math.floor(p.random(2, 9));
-          gs.maxShift     = p.random(40, 160) * (p.random() > 0.5 ? 1 : -1);
-        }
-      } else if (this._frame >= gs.nextEvent) {
-        const n = p.noise(i * 0.3, this._frame * 0.012 * spd * 0.08);
-        if (n > 0.63) {
-          gs.active   = true;
-          gs.duration = 0;
-          gs.shift    = gs.maxShift;
-        } else {
-          gs.nextEvent = this._frame + Math.floor(p.random(5, 30));
-        }
-      }
+    // Paleta: índice 0 = fg del preset, resto = acentos
+    this._palette = [
+      [fR, fG, fB],
+      [p.random(185,215), p.random(155,180), 5],
+      [15, p.random(110,175), p.random(200,255)],
+      [p.random(220,255), p.random(118,155), 15],
+      [p.random(165,195), p.random(175,208), p.random(200,230)],
+      [p.random(215,255), 15, p.random(148,195)],
+      [p.random(188,228), p.random(218,255), 15],
+    ];
+
+    // ── Muestrear el título a resolución de celda ──
+    const off = p.createGraphics(bufW, bufH);
+    off.pixelDensity(1);
+    off.background(bgR, bgG, bgB);
+    off.drawingContext.fillStyle = `rgb(${fR},${fG},${fB})`;
+
+    let fSz = bufH / 4.2;
+    off.drawingContext.font = `700 ${fSz}px '${this.state.title?.font || 'workfaaad-b'}', monospace`;
+    while (fSz > 8 && off.drawingContext.measureText('PROCESSING').width > bufW * 0.92) {
+      fSz -= 1;
+      off.drawingContext.font = `700 ${fSz}px '${this.state.title?.font || 'workfaaad-b'}', monospace`;
     }
-  }
-
-  render() {
-    const p   = this.p;
-    const [fR, fG, fB] = this.getFg();
-    const [aR, aG, aB] = this.getAnimRgb();
-    const ctx = p.drawingContext;
-    const rowH = this._rowH;
-    const f   = this._frame;
-
-    ctx.save();
-
-    // Subtle noise bands behind everything
-    for (let i = 0; i < this._gs.length; i++) {
-      const n = p.noise(i * 0.06, f * 0.003);
-      if (n > 0.62) {
-        const a = (n - 0.62) / 0.38 * 0.12;
-        ctx.fillStyle = `rgba(${fR},${fG},${fB},${a.toFixed(3)})`;
-        ctx.fillRect(0, i * rowH, CANVAS_W, rowH - 1);
-      }
+    const lh = fSz * 0.98;
+    const tH = SLIDE4_TITLE.length * lh;
+    const tY = (bufH - tH) / 2;
+    off.drawingContext.textBaseline = 'top';
+    off.drawingContext.textAlign    = 'center';
+    for (let i = 0; i < SLIDE4_TITLE.length; i++) {
+      off.drawingContext.fillText(SLIDE4_TITLE[i], bufW / 2, tY + i * lh);
     }
+    off.loadPixels();
 
-    // Glitch rows with chromatic aberration
-    for (let i = 0; i < this._gs.length; i++) {
-      const gs = this._gs[i];
-      if (!gs.active) continue;
-      const y  = i * rowH;
-      const sh = gs.shift;
-      ctx.fillStyle = `rgba(${aR},0,0,0.38)`;
-      ctx.fillRect(sh + 4, y, CANVAS_W, rowH);
-      ctx.fillStyle = `rgba(0,0,${aB},0.38)`;
-      ctx.fillRect(sh - 4, y, CANVAS_W, rowH);
-      ctx.fillStyle = `rgba(${fR},${fG},${fB},0.18)`;
-      ctx.fillRect(sh, y, CANVAS_W, rowH - 1);
-      ctx.fillStyle = `rgba(${fR},${fG},${fB},0.9)`;
-      ctx.fillRect(0, y, CANVAS_W, 1);
-    }
-
-    // Occasional vertical corruption strip
-    const tn = f * 0.05;
-    if (p.noise(tn) > 0.79) {
-      const x = Math.floor(p.noise(tn + 10) * CANVAS_W);
-      const w = 2 + Math.floor(p.noise(tn + 20) * 14);
-      ctx.fillStyle = `rgba(${aR},${aG},${aB},0.55)`;
-      ctx.fillRect(x, 0, w, CANVAS_H);
-    }
-
-    ctx.restore();
-  }
-
-  reset() { this._reset(); }
-  setParams() {}
-}
-
-/* =====================================================
-   2. PIXEL MELT — Columnas de píxeles que gotean hacia abajo
-      con gradiente y punta brillante
-   ===================================================== */
-class PixelMelt extends BaseAnimation {
-  constructor(p, state) {
-    super(p, state);
-    this._drops = [];
-    this._colW  = 14;
-    this._reset();
-  }
-
-  _reset() {
-    const p = this.p;
-    p.randomSeed(this.state.anim.seed || 42);
-    const cols = Math.ceil(CANVAS_W / this._colW);
-    this._drops = Array.from({ length: cols }, () => ({
-      y:       p.random(-CANVAS_H, 0),
-      speed:   p.random(0.8, 3.5),
-      len:     30 + Math.floor(p.random(40, 170)),
-      alpha:   p.random(0.3, 0.85),
-      useAnim: p.random() > 0.5
-    }));
-  }
-
-  advanceState() {
-    const p   = this.p;
-    const spd = (this.state.anim.speed || 2) * 0.4;
-    for (const d of this._drops) {
-      d.y += d.speed * spd;
-      if (d.y - d.len > CANVAS_H) {
-        d.y       = -p.random(10, 220);
-        d.speed   = p.random(0.8, 3.5);
-        d.len     = 30 + Math.floor(p.random(40, 170));
-        d.alpha   = p.random(0.3, 0.85);
-        d.useAnim = p.random() > 0.5;
-      }
-    }
-  }
-
-  render() {
-    const p   = this.p;
-    const [fR, fG, fB] = this.getFg();
-    const [aR, aG, aB] = this.getAnimRgb();
-    const ctx = p.drawingContext;
-    const colW = this._colW;
-
-    ctx.save();
-    for (let i = 0; i < this._drops.length; i++) {
-      const d = this._drops[i];
-      const x = i * colW;
-      const [tR, tG, tB] = d.useAnim ? [aR, aG, aB] : [fR, fG, fB];
-      const grad = ctx.createLinearGradient(0, d.y - d.len, 0, d.y);
-      grad.addColorStop(0,   `rgba(${tR},${tG},${tB},0)`);
-      grad.addColorStop(0.3, `rgba(${tR},${tG},${tB},${d.alpha.toFixed(3)})`);
-      grad.addColorStop(0.8, `rgba(${fR},${fG},${fB},${(d.alpha * 0.55).toFixed(3)})`);
-      grad.addColorStop(1,   `rgba(${fR},${fG},${fB},0.92)`);
-      ctx.fillStyle = grad;
-      ctx.fillRect(x, d.y - d.len, colW - 1, d.len);
-      // Bright tip
-      ctx.fillStyle = `rgba(${fR},${fG},${fB},0.96)`;
-      ctx.fillRect(x, d.y - 2, colW - 1, 3);
-    }
-    ctx.restore();
-  }
-
-  reset() { this._reset(); }
-  setParams() {}
-}
-
-/* =====================================================
-   3. NOISE CORRUPTION — Bloques de ruido Perlin con
-      mezcla cromática y ráfagas de alta intensidad
-   ===================================================== */
-class NoiseCorruption extends BaseAnimation {
-  constructor(p, state) {
-    super(p, state);
-    this._t = 0;
-    this._reset();
-  }
-
-  _reset() {
-    this._t = 0;
-    this.p.noiseSeed(this.state.anim.seed || 42);
-  }
-
-  advanceState() {
-    this._t += (this.state.anim.speed || 2) * 0.008;
-  }
-
-  render() {
-    const p   = this.p;
-    const [fR, fG, fB] = this.getFg();
-    const [aR, aG, aB] = this.getAnimRgb();
-    const ctx = p.drawingContext;
-    const step = 12;
-    const t   = this._t;
-
-    ctx.save();
-    for (let y = 0; y < CANVAS_H; y += step) {
-      for (let x = 0; x < CANVAS_W; x += step) {
-        const n1  = p.noise(x * 0.004, y * 0.004, t);
-        const n2  = p.noise(x * 0.018 + 100, y * 0.018, t * 1.6);
-        const val = n1 * n2;
-        if (val > 0.34) {
-          const a   = (val - 0.34) / 0.66;
-          const mix = n2;
-          const r   = Math.round(fR * (1 - mix) + aR * mix);
-          const g   = Math.round(fG * (1 - mix) + aG * mix);
-          const b   = Math.round(fB * (1 - mix) + aB * mix);
-          ctx.fillStyle = `rgba(${r},${g},${b},${(a * 0.42).toFixed(3)})`;
-          ctx.fillRect(x, y, step, step);
-        }
-        if (val > 0.7) {
-          const hi = Math.min(1, (val - 0.7) * 3.3);
-          ctx.fillStyle = `rgba(${fR},${fG},${fB},${hi.toFixed(3)})`;
-          ctx.fillRect(x, y, step, step);
-        }
-      }
-    }
-    ctx.restore();
-  }
-
-  reset() { this._reset(); }
-  setParams() {}
-}
-
-/* =====================================================
-   4. SCANLINE DRIFT — Líneas horizontales que se desplazan
-      pulsando en brillo como una pantalla CRT
-   ===================================================== */
-class ScanlineDrift extends BaseAnimation {
-  constructor(p, state) {
-    super(p, state);
-    this._lines = [];
-    this._t = 0;
-    this._reset();
-  }
-
-  _reset() {
-    const p = this.p;
-    p.randomSeed(this.state.anim.seed || 42);
-    this._t = 0;
-    this._lines = Array.from({ length: 40 }, () => ({
-      y:       p.random(0, CANVAS_H),
-      speed:   p.random(-1.4, 1.4),
-      h:       p.random(1, 7),
-      alpha:   p.random(0.1, 0.6),
-      phase:   p.random(0, Math.PI * 2),
-      freq:    p.random(0.002, 0.012),
-      useAnim: p.random() > 0.5
-    }));
-  }
-
-  advanceState() {
-    const spd = (this.state.anim.speed || 2) * 0.25;
-    this._t += spd;
-    for (const ln of this._lines) {
-      ln.y += ln.speed * spd;
-      if (ln.y > CANVAS_H + 10) ln.y = -ln.h;
-      if (ln.y < -ln.h - 10)   ln.y = CANVAS_H;
-    }
-  }
-
-  render() {
-    const p   = this.p;
-    const [fR, fG, fB] = this.getFg();
-    const [aR, aG, aB] = this.getAnimRgb();
-    const ctx = p.drawingContext;
-    const t   = this._t;
-
-    ctx.save();
-    for (const ln of this._lines) {
-      const pulse = 0.5 + 0.5 * Math.sin(t * ln.freq + ln.phase);
-      const eff   = ln.alpha * pulse;
-      if (eff < 0.01) continue;
-      const [r, g, b] = ln.useAnim ? [aR, aG, aB] : [fR, fG, fB];
-      ctx.fillStyle = `rgba(${r},${g},${b},${eff.toFixed(3)})`;
-      ctx.fillRect(0, ln.y, CANVAS_W, ln.h);
-    }
-    // Sweep pulse across canvas
-    const sweep = ((t * 0.8) % CANVAS_H);
-    ctx.fillStyle = `rgba(${fR},${fG},${fB},0.045)`;
-    ctx.fillRect(0, sweep - 35, CANVAS_W, 70);
-    ctx.restore();
-  }
-
-  reset() { this._reset(); }
-  setParams() {}
-}
-
-/* =====================================================
-   5. DATA MOSHING — Macroblocks de codec de video que
-      aparecen y desaparecen como artefactos de compresión
-   ===================================================== */
-class DataMoshing extends BaseAnimation {
-  constructor(p, state) {
-    super(p, state);
-    this._blocks = [];
-    this._frame  = 0;
-    this._reset();
-  }
-
-  _reset() {
-    const p = this.p;
-    p.randomSeed(this.state.anim.seed || 42);
-    this._frame = 0;
-    const bW   = 64;
-    const bH   = 64;
-    const cols = Math.ceil(CANVAS_W / bW);
-    const rows = Math.ceil(CANVAS_H / bH);
-    this._blocks = [];
+    this._grid = new Uint8Array(N);
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        this._blocks.push({
-          x:       c * bW,
-          y:       r * bH,
-          w:       bW,
-          h:       bH,
-          alpha:   0,
-          target:  p.random() > 0.65 ? p.random(0.07, 0.42) : 0,
-          useAnim: p.random() > 0.45,
-          timer:   Math.floor(p.random(0, 80)),
-          interval: 15 + Math.floor(p.random(10, 55))
-        });
+        const px  = Math.round((c + 0.5) * cW);
+        const py  = Math.round((r + 0.5) * cH);
+        const idx = (py * bufW + px) * 4;
+        const d   = Math.abs(off.pixels[idx]   - bgR)
+                  + Math.abs(off.pixels[idx+1] - bgG)
+                  + Math.abs(off.pixels[idx+2] - bgB);
+        this._grid[r * cols + c] = d > 45 ? 1 : 0;
       }
     }
+    off.remove();
+
+    // ── Estado inicial por celda ──
+    const nCh  = this._chars.length;
+    const nPal = this._palette.length;
+    this._on    = new Uint8Array(N);
+    this._ch    = new Uint8Array(N);
+    this._timer = new Uint8Array(N);
+    this._ci    = new Uint8Array(N);
+    for (let i = 0; i < N; i++) {
+      const isText   = this._grid[i] === 1;
+      this._on[i]    = (p.random() < (isText ? 0.78 : 0.007)) ? 1 : 0;
+      this._ch[i]    = Math.floor(p.random(nCh));
+      this._timer[i] = Math.floor(p.random(1, 26));
+      this._ci[i]    = isText
+        ? (p.random() < 0.72 ? 0 : Math.floor(p.random(1, nPal)))
+        : Math.floor(p.random(1, nPal));
+    }
+
+    this._rowGlitches = [];
+    this._blkGlitches = [];
   }
 
   advanceState() {
-    const p   = this.p;
-    const spd = (this.state.anim.speed || 2) * 0.5;
-    this._frame++;
-    for (const blk of this._blocks) {
-      blk.timer--;
-      if (blk.timer <= 0) {
-        blk.timer    = Math.max(1, Math.floor(blk.interval / spd));
-        blk.target   = p.random() > 0.6 ? p.random(0.06, 0.4) : 0;
-        blk.useAnim  = p.random() > 0.45;
-        blk.interval = 15 + Math.floor(p.random(10, 55));
+    if (!this.state.playing) return;
+    this._f++;
+    const p    = this.p;
+    const cols = this._cols;
+    const rows = this._rows;
+    const N    = cols * rows;
+    const spd  = Math.max(0.4, (this.state.anim?.speed || 2) * 0.35);
+    const nCh  = this._chars.length;
+    const nPal = this._palette.length;
+
+    // ── Flip por celda — snap instantáneo ──
+    for (let i = 0; i < N; i++) {
+      if (this._timer[i] > 0) { this._timer[i]--; continue; }
+      const isText   = this._grid[i] === 1;
+      this._on[i]    = (p.random() < (isText ? 0.82 : 0.007)) ? 1 : 0;
+      this._ch[i]    = Math.floor(p.random(nCh));
+      this._timer[i] = Math.max(1, Math.floor(p.random(2, 26) / spd));
+      if (isText && p.random() < 0.12) {
+        this._ci[i] = p.random() < 0.65 ? 0 : Math.floor(p.random(1, nPal));
       }
-      blk.alpha += (blk.target - blk.alpha) * 0.1;
+    }
+
+    // ── Row glitch: fila entera se desplaza horizontalmente ──
+    this._rowGlitches = this._rowGlitches.filter(g => --g.life > 0);
+    if (p.random() < 0.035) {
+      this._rowGlitches.push({
+        row:  Math.floor(p.random(rows)),
+        dxC:  Math.floor(p.random(2, 10)) * (p.random() > 0.5 ? 1 : -1),
+        life: Math.floor(p.random(1, 4))
+      });
+    }
+
+    // ── Block glitch: rectángulo de color sólido breve ──
+    this._blkGlitches = this._blkGlitches.filter(g => --g.life > 0);
+    if (p.random() < 0.04) {
+      this._blkGlitches.push({
+        c:    Math.floor(p.random(cols)),
+        r:    Math.floor(p.random(rows)),
+        cw:   Math.floor(p.random(3, 18)),
+        rh:   Math.floor(p.random(1, 5)),
+        ci:   Math.floor(p.random(1, nPal)),
+        life: Math.floor(p.random(1, 3))
+      });
     }
   }
 
   render() {
-    const p   = this.p;
+    const p    = this.p;
+    const ctx  = p.drawingContext;
+    const cW   = this._cW;
+    const cH   = this._cH;
+    const cols = this._cols;
+    const rows = this._rows;
+    const nPal = this._palette.length;
+
+    // Sincronizar palette[0] con el fg actual del preset
     const [fR, fG, fB] = this.getFg();
-    const [aR, aG, aB] = this.getAnimRgb();
-    const ctx = p.drawingContext;
+    this._palette[0] = [fR, fG, fB];
 
     ctx.save();
-    for (const blk of this._blocks) {
-      if (blk.alpha < 0.006) continue;
-      const [r, g, b] = blk.useAnim ? [aR, aG, aB] : [fR, fG, fB];
-      ctx.fillStyle = `rgba(${r},${g},${b},${blk.alpha.toFixed(3)})`;
-      ctx.fillRect(blk.x, blk.y, blk.w - 1, blk.h - 1);
+    ctx.font         = `700 ${this._fSz}px 'Space Mono', monospace`;
+    ctx.textBaseline = 'top';
+    ctx.textAlign    = 'left';
+
+    // Mapa de desplazamiento por fila
+    const rowShift = new Map();
+    for (const g of this._rowGlitches) {
+      rowShift.set(g.row, (rowShift.get(g.row) || 0) + g.dxC * cW);
     }
-    // Occasional smear line
-    if (this._frame % 20 < 2) {
-      const yLine = Math.floor(p.noise(this._frame * 0.06) * CANVAS_H);
-      ctx.fillStyle = `rgba(${fR},${fG},${fB},0.55)`;
-      ctx.fillRect(0, yLine, CANVAS_W, 1);
+
+    // Dos grupos separados: fondo (opacidad muy baja) y letras (opacidad plena)
+    const BG_SIZES  = [22, 36, 52, 72, 96, 128, 160];
+    const bgBatch   = { s: [], x: [], y: [], z: [] }; // z = tamaño de fuente
+    const txtBatch  = Array.from({length: nPal}, () => ({ s: [], x: [], y: [] }));
+
+    for (let r = 0; r < rows; r++) {
+      const shiftX = rowShift.get(r) || 0;
+      for (let c = 0; c < cols; c++) {
+        const i = r * cols + c;
+        if (!this._on[i]) continue;
+        const x = c * cW + shiftX;
+        if (x < -cW || x > CANVAS_W) continue;
+        const ch = this._chars[this._ch[i]];
+        const y  = r * cH;
+
+        if (this._grid[i] === 0) {
+          // Celda de fondo: tamaño aleatorio exagerado derivado del índice de char
+          const sz = BG_SIZES[this._ch[i] % BG_SIZES.length];
+          bgBatch.s.push(ch); bgBatch.x.push(x); bgBatch.y.push(y); bgBatch.z.push(sz);
+        } else {
+          // Celda de letra: va al batch de texto por color
+          const ci  = this._ci[i] % nPal;
+          const buf = txtBatch[ci];
+          buf.s.push(ch); buf.x.push(x); buf.y.push(y);
+        }
+      }
     }
+
+    // 1. Ruido de fondo — tamaños variados y exagerados, muy tenue
+    if (bgBatch.s.length) {
+      ctx.fillStyle = `rgba(${fR},${fG},${fB},0.10)`;
+      let lastSz = -1;
+      for (let k = 0; k < bgBatch.s.length; k++) {
+        if (bgBatch.z[k] !== lastSz) {
+          ctx.font = `700 ${bgBatch.z[k]}px 'Space Mono', monospace`;
+          lastSz = bgBatch.z[k];
+        }
+        ctx.fillText(bgBatch.s[k], bgBatch.x[k], bgBatch.y[k]);
+      }
+      ctx.font = `700 ${this._fSz}px 'Space Mono', monospace`;
+    }
+
+    // 2. Caracteres del título — opacos, protagonistas
+    const mono = this.state.posterSlide === 5;
+    for (let ci = 0; ci < nPal; ci++) {
+      const buf = txtBatch[ci];
+      if (!buf.s.length) continue;
+      const [r, g, b] = mono ? [fR, fG, fB] : this._palette[ci];
+      ctx.fillStyle = (mono || ci === 0)
+        ? `rgb(${r},${g},${b})`
+        : `rgba(${r},${g},${b},0.92)`;
+      for (let k = 0; k < buf.s.length; k++) {
+        ctx.fillText(buf.s[k], buf.x[k], buf.y[k]);
+      }
+    }
+
+    // 3. Block glitches encima
+    for (const g of this._blkGlitches) {
+      const [r2, g2, b2] = mono ? [fR, fG, fB] : this._palette[g.ci % nPal];
+      ctx.fillStyle = `rgba(${r2},${g2},${b2},0.82)`;
+      ctx.fillRect(g.c * cW, g.r * cH, g.cw * cW, g.rh * cH);
+    }
+
     ctx.restore();
+
+    if (typeof drawSlide4Logos === 'function') drawSlide4Logos(p);
   }
 
-  reset() { this._reset(); }
+  getPosterAlpha() { return 0; }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._f   = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+    this._init();
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   2. PIXEL EXPLOSION
+   Grilla de píxeles grandes. Cada celda parpadea de forma
+   independiente y snap instantáneo (sin interpolación).
+   El texto se forma por presencia/ausencia de color.
+   ===================================================== */
+class PixelExplosion extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed    = Math.random() * 99999;
+    this._frame  = 0;
+    this._cellSz = 14;
+    this._gap    = 1;
+    this._cols   = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows   = Math.ceil(CANVAS_H / this._cellSz);
+    this._grid   = null; // Uint8Array: 1=celda de texto, 0=fondo
+    this._on     = null; // Uint8Array: estado on/off actual
+    this._timer  = null; // Uint8Array: frames hasta próximo flip
+    this._ci     = null; // Uint8Array: índice de color por celda
+    this._palette = [];
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+    this._init();
+  }
+
+  _init() {
+    const p    = this.p;
+    const sz   = this._cellSz;
+    const cols = this._cols;
+    const rows = this._rows;
+    const N    = cols * rows;
+    const bufW = cols * sz;
+    const bufH = rows * sz;
+
+    const [fR, fG, fB]    = this.getFg();
+    const [bgR, bgG, bgB] = this.getBg();
+
+    // Paleta de colores de acento (índice 0 = fg del preset)
+    this._palette = [
+      [fR, fG, fB],                                               // fg preset
+      [p.random(185,215), p.random(155,180), 5],                  // gold
+      [15, p.random(110,175), p.random(200,255)],                 // blue
+      [p.random(220,255), p.random(118,155), 15],                 // orange
+      [p.random(165,195), p.random(175,208), p.random(200,230)],  // lavender
+      [p.random(215,255), 15, p.random(148,195)],                 // magenta
+      [p.random(188,228), p.random(218,255), 15],                 // lime
+    ];
+
+    // ── Muestrear el texto a resolución de celda ──
+    const off = p.createGraphics(bufW, bufH);
+    off.pixelDensity(1);
+    off.background(bgR, bgG, bgB);
+    off.drawingContext.fillStyle = `rgb(${fR},${fG},${fB})`;
+
+    let fSz = bufH / 4.2;
+    off.drawingContext.font = `700 ${fSz}px '${this.state.title?.font || 'workfaaad-b'}', monospace`;
+    while (fSz > 8 && off.drawingContext.measureText('PROCESSING').width > bufW * 0.92) {
+      fSz -= 1;
+      off.drawingContext.font = `700 ${fSz}px '${this.state.title?.font || 'workfaaad-b'}', monospace`;
+    }
+    const lh = fSz * 0.98;
+    const tH = SLIDE4_TITLE.length * lh;
+    const tY = (bufH - tH) / 2;
+    off.drawingContext.textBaseline = 'top';
+    off.drawingContext.textAlign    = 'center';
+    for (let i = 0; i < SLIDE4_TITLE.length; i++) {
+      off.drawingContext.fillText(SLIDE4_TITLE[i], bufW / 2, tY + i * lh);
+    }
+    off.loadPixels();
+
+    this._grid = new Uint8Array(N);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const px  = Math.round((c + 0.5) * sz);
+        const py  = Math.round((r + 0.5) * sz);
+        const idx = (py * bufW + px) * 4;
+        const d   = Math.abs(off.pixels[idx]   - bgR)
+                  + Math.abs(off.pixels[idx+1] - bgG)
+                  + Math.abs(off.pixels[idx+2] - bgB);
+        this._grid[r * cols + c] = d > 45 ? 1 : 0;
+      }
+    }
+    off.remove();
+
+    // ── Estado inicial por celda ──
+    this._on    = new Uint8Array(N);
+    this._timer = new Uint8Array(N);
+    this._ci    = new Uint8Array(N);
+    for (let i = 0; i < N; i++) {
+      const isText   = this._grid[i] === 1;
+      this._on[i]    = (p.random() < (isText ? 0.80 : 0.02)) ? 1 : 0;
+      this._timer[i] = Math.floor(p.random(1, 24));
+      this._ci[i]    = Math.floor(p.random(this._palette.length));
+    }
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+    const p    = this.p;
+    const cols = this._cols;
+    const rows = this._rows;
+    const N    = cols * rows;
+    // speed controla qué tan rápido parpadean los píxeles
+    const spd  = Math.max(0.4, (this.state.anim?.speed || 2) * 0.35);
+
+    for (let i = 0; i < N; i++) {
+      if (this._timer[i] > 0) { this._timer[i]--; continue; }
+      const isText    = this._grid[i] === 1;
+      // Snap instantáneo: sin interpolación
+      this._on[i]    = (p.random() < (isText ? 0.84 : 0.025)) ? 1 : 0;
+      this._timer[i] = Math.max(1, Math.floor(p.random(2, 22) / spd));
+      // Cambio de color ocasional
+      if (isText && p.random() < 0.10) {
+        this._ci[i] = Math.floor(p.random(this._palette.length));
+      }
+    }
+
+  }
+
+  render() {
+    const p      = this.p;
+    const ctx    = p.drawingContext;
+    const sz     = this._cellSz;
+    const gap    = this._gap;
+    const cols   = this._cols;
+    const rows   = this._rows;
+    const draw   = sz - gap;
+    const [fR, fG, fB] = this.getFg();
+    const mono = this.state.posterSlide === 5;
+
+    ctx.save();
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const i = r * cols + c;
+        if (!this._on[i]) continue;
+
+        const x = c * sz + gap;
+        const y = r * sz + gap;
+        const [pr, pg, pb] = mono ? [fR, fG, fB] : this._palette[this._ci[i] % this._palette.length];
+
+        if (this._grid[i]) {
+          ctx.fillStyle = `rgb(${pr},${pg},${pb})`;
+        } else {
+          ctx.fillStyle = `rgba(${pr},${pg},${pb},0.28)`;
+        }
+        ctx.fillRect(x, y, draw, draw);
+      }
+    }
+
+    ctx.restore();
+
+    if (typeof drawSlide4Logos === 'function') drawSlide4Logos(p);
+  }
+
+  getPosterAlpha() { return 0; }
+  handleMouse() {}
+  reset() {
+    this.seed   = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+    this._init();
+  }
   setParams() {}
 }
 
@@ -389,9 +438,6 @@ class DataMoshing extends BaseAnimation {
    REGISTRO DE ANIMACIONES SLIDE 4
    ===================================================== */
 const ANIMATIONS_SLIDE4 = {
-  'glitch-blocks':    GlitchBlocks,
-  'pixel-melt':       PixelMelt,
-  'noise-corruption': NoiseCorruption,
-  'scanline-drift':   ScanlineDrift,
-  'data-moshing':     DataMoshing
+  'glitch-overload': GlitchOverload,
+  'pixel-explosion': PixelExplosion,
 };

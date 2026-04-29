@@ -83,7 +83,8 @@ let WCAG_PALETTES = [];
 /* =====================================================
    CONTENIDO FIJO
    ===================================================== */
-const TITLE_LINES = ['/*Processing', '/*Community', '/*Day — 2026'];
+const TITLE_LINES  = ['/*Processing', '/*Community', '/*Day — 2026'];
+const SLIDE4_TITLE = ['PROCESSING', 'COMMUNITY', 'DAY'];
 
 const INFO_LINES = [
   'Evento: Processing Community Day',
@@ -112,11 +113,8 @@ const ANIM_OPTIONS_POSTER = [
 ];
 
 const ANIM_OPTIONS_SLIDE4 = [
-  { value: 'glitch-blocks',    label: 'Glitch Blocks' },
-  { value: 'pixel-melt',       label: 'Pixel Melt' },
-  { value: 'noise-corruption', label: 'Noise Corruption' },
-  { value: 'scanline-drift',   label: 'Scanline Drift' },
-  { value: 'data-moshing',     label: 'Data Moshing' },
+  { value: 'glitch-overload', label: 'Glitch Overload' },
+  { value: 'pixel-explosion', label: 'Pixel Explosion' },
 ];
 
 const PROJECT_CATEGORIES = [
@@ -208,7 +206,7 @@ const state = {
     font:        'Space Mono',
     fontWeight:  '700',
     blendMode:   'source-over',
-    slide4Anim:  'glitch-blocks',
+    slide4Anim:  'glitch-overload',
     params: {
       'letter-physics': {
         text:       'CONVOCATORIA ABIERTA',
@@ -337,20 +335,31 @@ const sketch = (p) => {
     const [bgR, bgG, bgB] = hexRgb(state.preset.bg);
     p.background(bgR, bgG, bgB);
 
-    const _activeAnim = (state.posterSlide === 4) ? slide4Animation : currentAnimation;
-    if (_activeAnim && state.format !== 'banner' && [0, 1, 4, 5].includes(state.posterSlide)) {
-      p.push();
-      let opa = (state.anim.opacity / 100) * fadeOpacity;
-      if (state.posterSlide === 5) opa *= 0.3;
-      p.drawingContext.globalAlpha = Math.max(0, Math.min(1, opa));
-      p.drawingContext.globalCompositeOperation = state.anim.blendMode || 'source-over';
-      _activeAnim.draw();
-      p.drawingContext.globalCompositeOperation = 'source-over';
-      p.drawingContext.globalAlpha = 1;
-      p.pop();
+    if ([4, 5].includes(state.posterSlide)) {
+      if (!slide4Animation) initSlide4Animation();
+      if (slide4Animation) {
+        p.push();
+        slide4Animation.draw();
+        p.pop();
+      }
+    } else {
+      if (currentAnimation && state.format !== 'banner' && [0, 1].includes(state.posterSlide)) {
+        p.push();
+        const opa = (state.anim.opacity / 100) * fadeOpacity;
+        p.drawingContext.globalAlpha = Math.max(0, Math.min(1, opa));
+        p.drawingContext.globalCompositeOperation = state.anim.blendMode || 'source-over';
+        currentAnimation.draw();
+        p.drawingContext.globalCompositeOperation = 'source-over';
+        p.drawingContext.globalAlpha = 1;
+        p.pop();
+      }
     }
 
-    const posterAlpha = currentAnimation?.getPosterAlpha?.() ?? 1;
+    const posterAlpha = (state.posterSlide === 4)
+      ? (slide4Animation?.getPosterAlpha?.() ?? 0)
+      : (state.posterSlide === 5)
+        ? 1
+        : (currentAnimation?.getPosterAlpha?.() ?? 1);
     if (posterAlpha > 0.004) {
       p.drawingContext.globalAlpha = posterAlpha;
       if (state.format === 'banner') {
@@ -376,7 +385,7 @@ const sketch = (p) => {
 };
 
 function dispatchMouse(p, type) {
-  const anim = (state.posterSlide === 4) ? slide4Animation : currentAnimation;
+  const anim = [4, 5].includes(state.posterSlide) ? slide4Animation : currentAnimation;
   if (!anim) return;
   const canvasEl = document.querySelector('#canvas-container canvas');
   if (!canvasEl) return;
@@ -392,8 +401,9 @@ function initAnimation() {
 }
 
 function initSlide4Animation() {
+  if (!p5Instance || typeof ANIMATIONS_SLIDE4 === 'undefined') return;
   const AnimClass = ANIMATIONS_SLIDE4[state.anim.slide4Anim];
-  if (!AnimClass || !p5Instance) return;
+  if (!AnimClass) return;
   slide4Animation = new AnimClass(p5Instance, state);
 }
 
@@ -986,6 +996,53 @@ function _drawLogosAt(p, yBase, logoH) {
   }
 }
 
+function drawSlide4Logos(p) {
+  const mx  = state.layout.marginX;
+  const my  = state.layout.marginY;
+  const fg  = state.preset.fg;
+  const bg  = state.preset.bg;
+  const logoH = 90;
+  const logoY  = CANVAS_H - my - logoH;
+  const ctx = p.drawingContext;
+
+  for (const name of LOGO_ORDER) {
+    const c = _logosImgCache[name];
+    const stale = !c || c.color !== fg || (name === 'processingFoundation' && c.bg !== bg);
+    if (stale) _buildLogoImg(name, fg);
+  }
+
+  if (!state.showExtraLogos) return;
+
+  const cFaad = _logosImgCache['faad_lockup-principal'];
+  const faadW = (cFaad && cFaad.img.naturalWidth) ? logoH * (cFaad.img.naturalWidth / cFaad.img.naturalHeight) : 0;
+  if (cFaad && cFaad.img.complete && faadW > 0) {
+    ctx.drawImage(cFaad.img, 40, CANVAS_H - 10 - logoH, faadW, logoH);
+  }
+
+  const extraLogos  = ['LID', 'crtic', 'processingFoundation'];
+  const extraScales = { LID: 0.90, crtic: 1.0, processingFoundation: 1.0 };
+  const extraWidths = extraLogos.map(name => {
+    const c = _logosImgCache[name];
+    if (!c || !c.img.complete || c.img.naturalWidth === 0) return 0;
+    return logoH * extraScales[name] * (c.img.naturalWidth / c.img.naturalHeight);
+  });
+  const totalExtraW = extraWidths.reduce((a, w) => a + w, 0);
+  const rightEdge   = CANVAS_W - mx;
+  const spaceAfter  = rightEdge - (mx + faadW);
+  const gap         = (spaceAfter - totalExtraW) / extraLogos.length;
+  let x = mx + faadW + gap;
+  for (let i = 0; i < extraLogos.length; i++) {
+    const name = extraLogos[i];
+    const c    = _logosImgCache[name];
+    const h    = logoH * extraScales[name];
+    const w    = extraWidths[i];
+    if (c && c.img.complete && c.img.naturalWidth > 0 && w > 0) {
+      ctx.drawImage(c.img, x, logoY + (logoH - h), w, h);
+    }
+    x += w + gap;
+  }
+}
+
 function drawSlide4(p) {
   const mx = state.layout.marginX;
   const fg = state.preset.fg;
@@ -1131,18 +1188,7 @@ function drawSlide5(p) {
   for (let i = 0; i < postLines.length; i++) ctx.fillText(postLines[i], mx, pY + i * postLh);
   ctx.restore();
 
-  // ── Logos ──
-  const logoH  = 72;
-  const stripH = 88;
-  const stripY = CANVAS_H - 10 - stripH;
-
-  p.push();
-  p.noStroke();
-  p.fill(bgR, bgG, bgB, 210);
-  p.rect(0, stripY, CANVAS_W, stripH + 10);
-  p.pop();
-
-  if (state.showExtraLogos) _drawLogosAt(p, stripY + (stripH - logoH) / 2, logoH);
+  drawSlide4Logos(p);
 }
 
 /* =====================================================
@@ -1852,11 +1898,11 @@ function applyColorPreset(id) {
 /* =====================================================
    SELECTOR DE ANIMACIONES DINÁMICO
    ===================================================== */
-function rebuildAnimSelect(isSlide4) {
+function rebuildAnimSelect(isSlide45) {
   const select = document.getElementById('anim-select');
   if (!select) return;
-  const options      = isSlide4 ? ANIM_OPTIONS_SLIDE4 : ANIM_OPTIONS_POSTER;
-  const currentValue = isSlide4 ? state.anim.slide4Anim : state.anim.current;
+  const options      = isSlide45 ? ANIM_OPTIONS_SLIDE4 : ANIM_OPTIONS_POSTER;
+  const currentValue = isSlide45 ? state.anim.slide4Anim : state.anim.current;
   select.innerHTML   = '';
   for (const opt of options) {
     const el       = document.createElement('option');
@@ -1867,8 +1913,8 @@ function rebuildAnimSelect(isSlide4) {
   }
   if (!options.some(o => o.value === currentValue)) {
     select.value = options[0].value;
-    if (isSlide4) { state.anim.slide4Anim = options[0].value; initSlide4Animation(); }
-    else          { switchAnimation(options[0].value); }
+    if (isSlide45) { state.anim.slide4Anim = options[0].value; initSlide4Animation(); }
+    else           { switchAnimation(options[0].value); }
   }
 }
 
@@ -1906,14 +1952,13 @@ function bindControls() {
     if (ctc) ctc.style.display = isBanner ? 'none' : '';
   });
   onChange('poster-slide-select', e => {
-    const prev     = state.posterSlide;
+    const prev       = state.posterSlide;
     state.posterSlide = Number(e.target.value);
-    const wasSlide4 = prev === 4;
-    const isSlide4  = state.posterSlide === 4;
-    if (wasSlide4 !== isSlide4) rebuildAnimSelect(isSlide4);
-    if (isSlide4) {
+    const wasSlide45 = [4, 5].includes(prev);
+    const isSlide45  = [4, 5].includes(state.posterSlide);
+    if (wasSlide45 !== isSlide45) rebuildAnimSelect(isSlide45);
+    if (isSlide45) {
       if (!slide4Animation) initSlide4Animation();
-      else slide4Animation.reset();
     } else {
       slide4Animation = null;
       if (currentAnimation) currentAnimation.reset();
@@ -2024,7 +2069,7 @@ function bindControls() {
 
   // ——— Animación ———
   onChange('anim-select', e => {
-    if (state.posterSlide === 4) {
+    if ([4, 5].includes(state.posterSlide)) {
       state.anim.slide4Anim = e.target.value;
       initSlide4Animation();
     } else {
@@ -2034,25 +2079,25 @@ function bindControls() {
   onChange('anim-blend',  e => { state.anim.blendMode = e.target.value; });
   onChange('anim-font',   e => {
     state.anim.font = e.target.value;
-    const anim = (state.posterSlide === 4) ? slide4Animation : currentAnimation;
+    const anim = [4, 5].includes(state.posterSlide) ? slide4Animation : currentAnimation;
     if (anim) anim.reset();
   });
   slider('anim-speed', 'anim-speed-val', v => { state.anim.speed = v; }, 0.1, 1);
   slider('anim-text-size', 'anim-text-size-val', v => {
     state.anim.textSize = Math.round(v);
-    const anim = (state.posterSlide === 4) ? slide4Animation : currentAnimation;
+    const anim = [4, 5].includes(state.posterSlide) ? slide4Animation : currentAnimation;
     if (anim) anim.reset();
   });
   onChange('anim-seed', e => {
     state.anim.seed = parseInt(e.target.value) || 0;
-    if (state.posterSlide === 4) initSlide4Animation();
+    if ([4, 5].includes(state.posterSlide)) initSlide4Animation();
     else initAnimation();
   });
   onClick('btn-randomize-anim', () => {
     const seed = Math.floor(Math.random() * 99999);
     state.anim.seed = seed;
     el('anim-seed').value = seed;
-    if (state.posterSlide === 4) initSlide4Animation();
+    if ([4, 5].includes(state.posterSlide)) initSlide4Animation();
     else initAnimation();
     showToast('Nueva semilla: ' + seed);
   });
@@ -2077,7 +2122,7 @@ function bindControls() {
   });
 
   onClick('btn-reset', () => {
-    const anim = (state.posterSlide === 4) ? slide4Animation : currentAnimation;
+    const anim = [4, 5].includes(state.posterSlide) ? slide4Animation : currentAnimation;
     if (anim) anim.reset();
     showToast('Animación reiniciada');
   });
