@@ -206,8 +206,9 @@ const state = {
     font:        'Space Mono',
     fontWeight:  '700',
     blendMode:   'source-over',
-    slide4Anim:    'glitch-overload',
-    slide4Leading: 0.74,
+    slide4Anim:      'glitch-overload',
+    slide4Leading:   0.74,
+    slide4PixelMode: 'multi',
     params: {
       'letter-physics': {
         text:       'CONVOCATORIA ABIERTA',
@@ -1011,6 +1012,31 @@ function drawSlide4Logos(p) {
     const stale = !c || c.color !== fg || (name === 'processingFoundation' && c.bg !== bg);
     if (stale) _buildLogoImg(name, fg);
   }
+
+  // ── Gradiente fondo → transparente (realza logos) ──
+  const [bgR, bgG, bgB] = hexRgb(bg);
+  const lum = (0.299 * bgR + 0.587 * bgG + 0.114 * bgB) / 255;
+  let gR, gG, gB;
+  if (lum > 0.5) {
+    // Fondo claro → versión oscurecida
+    gR = Math.round(bgR * 0.40);
+    gG = Math.round(bgG * 0.40);
+    gB = Math.round(bgB * 0.40);
+  } else {
+    // Fondo oscuro → versión aclarada
+    gR = Math.min(255, bgR + 55);
+    gG = Math.min(255, bgG + 55);
+    gB = Math.min(255, bgB + 55);
+  }
+  const gradH = 380;
+  const grad  = ctx.createLinearGradient(0, CANVAS_H, 0, CANVAS_H - gradH);
+  grad.addColorStop(0,    `rgba(${gR},${gG},${gB},0.88)`);
+  grad.addColorStop(0.55, `rgba(${gR},${gG},${gB},0.40)`);
+  grad.addColorStop(1,    `rgba(${gR},${gG},${gB},0)`);
+  ctx.save();
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, CANVAS_H - gradH, CANVAS_W, gradH);
+  ctx.restore();
 
   if (!state.showExtraLogos) return;
 
@@ -1902,8 +1928,10 @@ function applyColorPreset(id) {
 function rebuildAnimSelect(isSlide45) {
   const select = document.getElementById('anim-select');
   if (!select) return;
-  const leadRow = document.getElementById('slide4-leading-row');
+  const leadRow  = document.getElementById('slide4-leading-row');
   if (leadRow) leadRow.style.display = isSlide45 ? '' : 'none';
+  const pixelRow = document.getElementById('slide4-pixel-mode-row');
+  if (pixelRow) pixelRow.style.display = (isSlide45 && state.anim.slide4Anim === 'pixel-explosion') ? '' : 'none';
   const options      = isSlide45 ? ANIM_OPTIONS_SLIDE4 : ANIM_OPTIONS_POSTER;
   const currentValue = isSlide45 ? state.anim.slide4Anim : state.anim.current;
   select.innerHTML   = '';
@@ -2075,10 +2103,13 @@ function bindControls() {
     if ([4, 5].includes(state.posterSlide)) {
       state.anim.slide4Anim = e.target.value;
       initSlide4Animation();
+      const pixelRow = document.getElementById('slide4-pixel-mode-row');
+      if (pixelRow) pixelRow.style.display = e.target.value === 'pixel-explosion' ? '' : 'none';
     } else {
       switchAnimation(e.target.value);
     }
   });
+  onChange('slide4-pixel-mode', e => { state.anim.slide4PixelMode = e.target.value; });
   onChange('anim-blend',  e => { state.anim.blendMode = e.target.value; });
   onChange('anim-font',   e => {
     state.anim.font = e.target.value;

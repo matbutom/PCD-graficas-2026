@@ -86,13 +86,15 @@ class GlitchOverload extends BaseAnimation {
     });
 
     // 2ª pasada: centrar verticalmente en el área de texto (sin pisar logos)
-    const logoRes  = bufH * 0.13;
+    const logoRes   = bufH * 0.13;
     const textAreaH = bufH - logoRes;
-    const totalH   = sizes.reduce((acc, sz) => acc + Math.round(sz * leading), 0);
+    const totalH    = sizes.reduce((acc, sz) => acc + Math.round(sz * leading), 0);
+    const commIdx   = SLIDE4_TITLE.indexOf('COMM');
     let y = Math.max(0, Math.floor((textAreaH - totalH) / 2));
     for (let i = 0; i < SLIDE4_TITLE.length; i++) {
+      const xOff = (i === commIdx) ? -bufW * 0.01 : 0;
       off.drawingContext.font = `900 ${sizes[i]}px ${_font}`;
-      off.drawingContext.fillText(SLIDE4_TITLE[i], leftX, y);
+      off.drawingContext.fillText(SLIDE4_TITLE[i], leftX + xOff, y);
       y += Math.round(sizes[i] * leading);
     }
     off.loadPixels();
@@ -364,13 +366,15 @@ class PixelExplosion extends BaseAnimation {
     });
 
     // 2ª pasada: centrar verticalmente en el área de texto (sin pisar logos)
-    const logoRes  = bufH * 0.13;
+    const logoRes   = bufH * 0.13;
     const textAreaH = bufH - logoRes;
-    const totalH   = sizes.reduce((acc, sz) => acc + Math.round(sz * leading), 0);
+    const totalH    = sizes.reduce((acc, sz) => acc + Math.round(sz * leading), 0);
+    const commIdx   = SLIDE4_TITLE.indexOf('COMM');
     let y = Math.max(0, Math.floor((textAreaH - totalH) / 2));
     for (let i = 0; i < SLIDE4_TITLE.length; i++) {
+      const xOff = (i === commIdx) ? -bufW * 0.01 : 0;
       off.drawingContext.font = `900 ${sizes[i]}px ${_font}`;
-      off.drawingContext.fillText(SLIDE4_TITLE[i], leftX, y);
+      off.drawingContext.fillText(SLIDE4_TITLE[i], leftX + xOff, y);
       y += Math.round(sizes[i] * leading);
     }
     off.loadPixels();
@@ -434,7 +438,11 @@ class PixelExplosion extends BaseAnimation {
     const rows   = this._rows;
     const draw   = sz - gap;
     const [fR, fG, fB] = this.getFg();
-    const mono = this.state.posterSlide === 5;
+    this._palette[0] = [fR, fG, fB];
+
+    const mono         = this.state.posterSlide === 5;
+    const contrastMode = this.state.anim?.slide4PixelMode === 'contrast';
+    const useFlat      = mono || contrastMode;
 
     ctx.save();
 
@@ -445,12 +453,24 @@ class PixelExplosion extends BaseAnimation {
 
         const x = c * sz + gap;
         const y = r * sz + gap;
-        const [pr, pg, pb] = mono ? [fR, fG, fB] : this._palette[this._ci[i] % this._palette.length];
 
-        if (this._grid[i]) {
-          ctx.fillStyle = `rgb(${pr},${pg},${pb})`;
+        if (useFlat) {
+          if (this._grid[i]) {
+            if (contrastMode) {
+              // opacidad según fase del timer: recién activado = brillante, a punto de cambiar = tenue
+              const opacity = 0.12 + 0.88 * Math.min(1, this._timer[i] / 20);
+              ctx.fillStyle = `rgba(${fR},${fG},${fB},${opacity.toFixed(2)})`;
+            } else {
+              ctx.fillStyle = `rgb(${fR},${fG},${fB})`;
+            }
+          } else {
+            ctx.fillStyle = `rgba(${fR},${fG},${fB},0.07)`;
+          }
         } else {
-          ctx.fillStyle = `rgba(${pr},${pg},${pb},0.28)`;
+          const [pr, pg, pb] = this._palette[this._ci[i] % this._palette.length];
+          ctx.fillStyle = this._grid[i]
+            ? `rgb(${pr},${pg},${pb})`
+            : `rgba(${pr},${pg},${pb},0.28)`;
         }
         ctx.fillRect(x, y, draw, draw);
       }
