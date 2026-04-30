@@ -84,7 +84,7 @@ let WCAG_PALETTES = [];
    CONTENIDO FIJO
    ===================================================== */
 const TITLE_LINES  = ['/*Processing', '/*Community', '/*Day — 2026'];
-const SLIDE4_TITLE = ['PROCESSING', 'COMMUNITY', 'DAY'];
+const SLIDE4_TITLE = ['PROCE', 'SSING', 'COMM', 'UNITY', 'DAY'];
 
 const INFO_LINES = [
   'Evento: Processing Community Day',
@@ -206,7 +206,8 @@ const state = {
     font:        'Space Mono',
     fontWeight:  '700',
     blendMode:   'source-over',
-    slide4Anim:  'glitch-overload',
+    slide4Anim:    'glitch-overload',
+    slide4Leading: 0.74,
     params: {
       'letter-physics': {
         text:       'CONVOCATORIA ABIERTA',
@@ -1901,6 +1902,8 @@ function applyColorPreset(id) {
 function rebuildAnimSelect(isSlide45) {
   const select = document.getElementById('anim-select');
   if (!select) return;
+  const leadRow = document.getElementById('slide4-leading-row');
+  if (leadRow) leadRow.style.display = isSlide45 ? '' : 'none';
   const options      = isSlide45 ? ANIM_OPTIONS_SLIDE4 : ANIM_OPTIONS_POSTER;
   const currentValue = isSlide45 ? state.anim.slide4Anim : state.anim.current;
   select.innerHTML   = '';
@@ -2082,6 +2085,10 @@ function bindControls() {
     const anim = [4, 5].includes(state.posterSlide) ? slide4Animation : currentAnimation;
     if (anim) anim.reset();
   });
+  slider('slide4-leading', 'slide4-leading-val', v => {
+    state.anim.slide4Leading = v;
+    if ([4, 5].includes(state.posterSlide)) initSlide4Animation();
+  }, 0.01, 2);
   slider('anim-speed', 'anim-speed-val', v => { state.anim.speed = v; }, 0.1, 1);
   slider('anim-text-size', 'anim-text-size-val', v => {
     state.anim.textSize = Math.round(v);

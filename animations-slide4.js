@@ -64,19 +64,36 @@ class GlitchOverload extends BaseAnimation {
     off.background(bgR, bgG, bgB);
     off.drawingContext.fillStyle = `rgb(${fR},${fG},${fB})`;
 
-    let fSz = bufH / 4.2;
-    off.drawingContext.font = `700 ${fSz}px '${this.state.title?.font || 'workfaaad-b'}', monospace`;
-    while (fSz > 8 && off.drawingContext.measureText('PROCESSING').width > bufW * 0.92) {
-      fSz -= 1;
-      off.drawingContext.font = `700 ${fSz}px '${this.state.title?.font || 'workfaaad-b'}', monospace`;
-    }
-    const lh = fSz * 0.98;
-    const tH = SLIDE4_TITLE.length * lh;
-    const tY = (bufH - tH) / 2;
+    const _font    = `'Space Mono', monospace`;
+    const leftX    = bufW * 0.015;
+    const availW   = bufW * 0.975;
+    const leading  = this.state.anim?.slide4Leading ?? 0.74;
+
     off.drawingContext.textBaseline = 'top';
-    off.drawingContext.textAlign    = 'center';
+    off.drawingContext.textAlign    = 'left';
+
+    // 1ª pasada: cada palabra escala al ancho del canvas (sin cap de altura)
+    const sizes = SLIDE4_TITLE.map(word => {
+      let sz = 40;
+      off.drawingContext.font = `900 ${sz}px ${_font}`;
+      while (off.drawingContext.measureText(word).width < availW) {
+        sz += 2; off.drawingContext.font = `900 ${sz}px ${_font}`;
+      }
+      while (sz > 8 && off.drawingContext.measureText(word).width > availW) {
+        sz -= 1; off.drawingContext.font = `900 ${sz}px ${_font}`;
+      }
+      return sz;
+    });
+
+    // 2ª pasada: centrar verticalmente en el área de texto (sin pisar logos)
+    const logoRes  = bufH * 0.13;
+    const textAreaH = bufH - logoRes;
+    const totalH   = sizes.reduce((acc, sz) => acc + Math.round(sz * leading), 0);
+    let y = Math.max(0, Math.floor((textAreaH - totalH) / 2));
     for (let i = 0; i < SLIDE4_TITLE.length; i++) {
-      off.drawingContext.fillText(SLIDE4_TITLE[i], bufW / 2, tY + i * lh);
+      off.drawingContext.font = `900 ${sizes[i]}px ${_font}`;
+      off.drawingContext.fillText(SLIDE4_TITLE[i], leftX, y);
+      y += Math.round(sizes[i] * leading);
     }
     off.loadPixels();
 
@@ -325,19 +342,36 @@ class PixelExplosion extends BaseAnimation {
     off.background(bgR, bgG, bgB);
     off.drawingContext.fillStyle = `rgb(${fR},${fG},${fB})`;
 
-    let fSz = bufH / 4.2;
-    off.drawingContext.font = `700 ${fSz}px '${this.state.title?.font || 'workfaaad-b'}', monospace`;
-    while (fSz > 8 && off.drawingContext.measureText('PROCESSING').width > bufW * 0.92) {
-      fSz -= 1;
-      off.drawingContext.font = `700 ${fSz}px '${this.state.title?.font || 'workfaaad-b'}', monospace`;
-    }
-    const lh = fSz * 0.98;
-    const tH = SLIDE4_TITLE.length * lh;
-    const tY = (bufH - tH) / 2;
+    const _font    = `'Space Mono', monospace`;
+    const leftX    = bufW * 0.015;
+    const availW   = bufW * 0.975;
+    const leading  = this.state.anim?.slide4Leading ?? 0.74;
+
     off.drawingContext.textBaseline = 'top';
-    off.drawingContext.textAlign    = 'center';
+    off.drawingContext.textAlign    = 'left';
+
+    // 1ª pasada: cada palabra escala al ancho del canvas (sin cap de altura)
+    const sizes = SLIDE4_TITLE.map(word => {
+      let sz = 40;
+      off.drawingContext.font = `900 ${sz}px ${_font}`;
+      while (off.drawingContext.measureText(word).width < availW) {
+        sz += 2; off.drawingContext.font = `900 ${sz}px ${_font}`;
+      }
+      while (sz > 8 && off.drawingContext.measureText(word).width > availW) {
+        sz -= 1; off.drawingContext.font = `900 ${sz}px ${_font}`;
+      }
+      return sz;
+    });
+
+    // 2ª pasada: centrar verticalmente en el área de texto (sin pisar logos)
+    const logoRes  = bufH * 0.13;
+    const textAreaH = bufH - logoRes;
+    const totalH   = sizes.reduce((acc, sz) => acc + Math.round(sz * leading), 0);
+    let y = Math.max(0, Math.floor((textAreaH - totalH) / 2));
     for (let i = 0; i < SLIDE4_TITLE.length; i++) {
-      off.drawingContext.fillText(SLIDE4_TITLE[i], bufW / 2, tY + i * lh);
+      off.drawingContext.font = `900 ${sizes[i]}px ${_font}`;
+      off.drawingContext.fillText(SLIDE4_TITLE[i], leftX, y);
+      y += Math.round(sizes[i] * leading);
     }
     off.loadPixels();
 
