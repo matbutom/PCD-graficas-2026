@@ -1150,37 +1150,46 @@ function drawSlide5(p) {
     if (!c || c.color !== fg || (name === 'processingFoundation' && c.bg !== bg)) _buildLogoImg(name, fg);
   }
 
-  // ── Título ──
-  const titleLines5 = ['¿QUÉ PROYECTOS', 'BUSCAMOS?'];
-  const tSz   = 80;
-  const tLh   = 82;
-  const tY    = 70;
-  const tFont = `700 ${tSz}px 'workfaaad-a', monospace`;
+  // ── Layout compacto: secciones sin gaps, un solo bloque ──
+  const titleLines5  = ['¿QUÉ PROYECTOS', 'BUSCAMOS?'];
+  const tSz          = 80;
+  const tLh          = 82;
+  const tY           = 70;
+  const tFont        = `700 ${tSz}px 'workfaaad-a', monospace`;
+  const titleH       = titleLines5.length * tLh;
 
+  const listFontSize = 27;
+  const listLh       = 43;
+  const listY        = tY + titleH + pad;
+  const listH        = PROJECT_CATEGORIES.length * listLh;
+
+  const postLines    = [
+    'Postula en: Salvador Sanfuentes 2221',
+    'Convocatoria: 23 Abril — 12 Mayo 2026'
+  ];
+  const postFontSize = 24;
+  const postLh       = 38;
+  const pY           = listY + listH + pad;
+  const postH        = postLines.length * postLh;
+
+  // ── Rectángulo unificado borde a borde ──
+  const blockTop = tY - pad;
+  const blockH   = (pY + postH + pad) - blockTop;
   ctx.save();
-  ctx.font = tFont;
-  const tMaxW = Math.max(...titleLines5.map(l => ctx.measureText(l).width));
-  ctx.fillStyle = `rgba(${bgR},${bgG},${bgB},0.9)`;
-  ctx.fillRect(mx - pad, tY - pad, tMaxW + pad * 2, titleLines5.length * tLh + pad * 2);
+  ctx.fillStyle = `rgba(${bgR},${bgG},${bgB},0.92)`;
+  ctx.fillRect(0, blockTop, CANVAS_W, blockH);
+  ctx.restore();
+
+  // ── Texto: título ──
+  ctx.save();
+  ctx.font         = tFont;
   ctx.textBaseline = 'top';
   ctx.textAlign    = 'left';
   ctx.fillStyle    = `rgb(${fR},${fG},${fB})`;
   for (let i = 0; i < titleLines5.length; i++) ctx.fillText(titleLines5[i], mx, tY + i * tLh);
   ctx.restore();
 
-  // ── Lista de categorías ──
-  const listFontSize = 27;
-  const listLh  = 43;
-  const listY   = tY + titleLines5.length * tLh + 50;
-  const listH   = PROJECT_CATEGORIES.length * listLh;
-  const listW   = CANVAS_W - 2 * mx;
-
-  p.push();
-  p.noStroke();
-  p.fill(bgR, bgG, bgB, 218);
-  p.rect(mx - pad, listY - pad, listW + pad * 2, listH + pad * 2);
-  p.pop();
-
+  // ── Texto: categorías ──
   ctx.save();
   ctx.font         = `normal ${listFontSize}px 'Necto Mono', monospace`;
   ctx.textBaseline = 'top';
@@ -1191,22 +1200,7 @@ function drawSlide5(p) {
   }
   ctx.restore();
 
-  // ── Bloque de postulación ──
-  const postLines = [
-    'Postula en: Salvador Sanfuentes 2221',
-    'Convocatoria: 23 Abril — 12 Mayo 2026'
-  ];
-  const postFontSize = 24;
-  const postLh = 38;
-  const pY     = listY + listH + 48;
-  const postH  = postLines.length * postLh;
-
-  p.push();
-  p.noStroke();
-  p.fill(bgR, bgG, bgB, 210);
-  p.rect(mx - pad, pY - pad, listW + pad * 2, postH + pad * 2);
-  p.pop();
-
+  // ── Texto: postulación ──
   ctx.save();
   ctx.font         = `normal ${postFontSize}px 'Necto Mono', monospace`;
   ctx.textBaseline = 'top';
