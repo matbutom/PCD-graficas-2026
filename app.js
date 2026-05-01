@@ -1150,27 +1150,84 @@ function drawSlide5(p) {
     if (!c || c.color !== fg || (name === 'processingFoundation' && c.bg !== bg)) _buildLogoImg(name, fg);
   }
 
-  // ── Layout compacto: secciones sin gaps, un solo bloque ──
-  const titleLines5  = ['¿QUÉ PROYECTOS', 'BUSCAMOS?'];
-  const tSz          = 80;
-  const tLh          = 82;
-  const tY           = 70;
-  const tFont        = `700 ${tSz}px 'workfaaad-a', monospace`;
-  const titleH       = titleLines5.length * tLh;
+  // ── Contenido slide 5 ──
+  const titleLines5 = ['¿QUÉ PROYECTOS', 'BUSCAMOS?'];
+  const tSz   = 80;
+  const tLh   = 82;
+  const tY    = 70;
+  const tFont = `700 ${tSz}px 'workfaaad-a', monospace`;
+  const titleH = titleLines5.length * tLh;
 
-  const listFontSize = 27;
-  const listLh       = 43;
-  const listY        = tY + titleH + pad;
-  const listH        = PROJECT_CATEGORIES.length * listLh;
+  const sections = [
+    {
+      header: 'LOS PROYECTOS DEBERÁN:',
+      items: [
+        '→ Estar orientados a la programación creativa y/o interacción digital',
+        '→ Incorporar lógica computacional y uso de código como elemento central',
+        '→ Explorar relaciones entre personas, datos, sistemas o entornos',
+      ]
+    },
+    {
+      header: 'FORMATOS POSIBLES:',
+      items: [
+        '→ Visualización de datos · Experiencias interactivas · Instalaciones',
+        '→ Prototipos tecnológicos · Aplicaciones experimentales · Proyectos afines',
+      ]
+    },
+    {
+      header: 'HERRAMIENTAS:',
+      items: [
+        '→ Processing · p5.js · Otras tecnologías (abiertas o propietarias)',
+        '→ En tecnologías no abiertas, se valorará el enfoque en acceso,',
+        '   inclusión y experimentación.',
+      ]
+    },
+  ];
 
-  const postLines    = [
+  const sHdrLh  = 50;
+  const sItemLh = 42;
+  const sGap    = 26;
+  const sFontSz = 22;
+  const hdrFont  = `700 ${sFontSz}px 'Necto Mono', monospace`;
+  const itemFont = `normal ${sFontSz}px 'Necto Mono', monospace`;
+  const textMaxW = CANVAS_W - mx - pad;
+
+  const wrapText = (text, font) => {
+    ctx.font = font;
+    const words = text.split(' ');
+    const lines = [];
+    let ln = '';
+    for (const w of words) {
+      const t = ln ? ln + ' ' + w : w;
+      if (ctx.measureText(t).width > textMaxW && ln) { lines.push(ln); ln = w; }
+      else ln = t;
+    }
+    if (ln) lines.push(ln);
+    return lines;
+  };
+
+  // Pre-calcular líneas con wrap para sizing y render
+  const wrapped = sections.map(sec => ({
+    hLines: wrapText(sec.header, hdrFont),
+    iLines: sec.items.map(item => wrapText(item, itemFont)),
+  }));
+
+  let sectionsH = 0;
+  for (const w of wrapped) {
+    sectionsH += w.hLines.length * sHdrLh;
+    for (const il of w.iLines) sectionsH += il.length * sItemLh;
+  }
+  sectionsH += (sections.length - 1) * sGap;
+
+  const listY = tY + titleH + pad;
+
+  const postLines = [
     'Postula en: Salvador Sanfuentes 2221',
     'Convocatoria: 23 Abril — 12 Mayo 2026'
   ];
-  const postFontSize = 24;
-  const postLh       = 38;
-  const pY           = listY + listH + pad;
-  const postH        = postLines.length * postLh;
+  const postLh = 38;
+  const pY     = listY + sectionsH + pad;
+  const postH  = postLines.length * postLh;
 
   // ── Rectángulo unificado borde a borde ──
   const blockTop = tY - pad;
@@ -1182,30 +1239,31 @@ function drawSlide5(p) {
 
   // ── Texto: título ──
   ctx.save();
-  ctx.font         = tFont;
-  ctx.textBaseline = 'top';
-  ctx.textAlign    = 'left';
-  ctx.fillStyle    = `rgb(${fR},${fG},${fB})`;
+  ctx.font = tFont; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  ctx.fillStyle = `rgb(${fR},${fG},${fB})`;
   for (let i = 0; i < titleLines5.length; i++) ctx.fillText(titleLines5[i], mx, tY + i * tLh);
   ctx.restore();
 
-  // ── Texto: categorías ──
+  // ── Texto: secciones con wrap ──
   ctx.save();
-  ctx.font         = `normal ${listFontSize}px 'Necto Mono', monospace`;
-  ctx.textBaseline = 'top';
-  ctx.textAlign    = 'left';
-  ctx.fillStyle    = `rgb(${fR},${fG},${fB})`;
-  for (let i = 0; i < PROJECT_CATEGORIES.length; i++) {
-    ctx.fillText('→ ' + PROJECT_CATEGORIES[i], mx, listY + i * listLh);
+  ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  ctx.fillStyle = `rgb(${fR},${fG},${fB})`;
+  let curY = listY;
+  for (let s = 0; s < sections.length; s++) {
+    ctx.font = hdrFont;
+    for (const hl of wrapped[s].hLines) { ctx.fillText(hl, mx, curY); curY += sHdrLh; }
+    ctx.font = itemFont;
+    for (const il of wrapped[s].iLines) {
+      for (const line of il) { ctx.fillText(line, mx, curY); curY += sItemLh; }
+    }
+    if (s < sections.length - 1) curY += sGap;
   }
   ctx.restore();
 
   // ── Texto: postulación ──
   ctx.save();
-  ctx.font         = `normal ${postFontSize}px 'Necto Mono', monospace`;
-  ctx.textBaseline = 'top';
-  ctx.textAlign    = 'left';
-  ctx.fillStyle    = `rgb(${fR},${fG},${fB})`;
+  ctx.font = `normal 24px 'Necto Mono', monospace`; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  ctx.fillStyle = `rgb(${fR},${fG},${fB})`;
   for (let i = 0; i < postLines.length; i++) ctx.fillText(postLines[i], mx, pY + i * postLh);
   ctx.restore();
 
