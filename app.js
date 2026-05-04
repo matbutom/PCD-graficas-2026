@@ -1207,12 +1207,17 @@ function drawSlide5(p) {
   };
 
   // Pre-calcular líneas con wrap para sizing y render
+  const introFont  = `normal 29px 'Necto Mono', monospace`;
+  const introText  = 'Propuestas donde el uso creativo del código y/o tecnologías digitales sea el eje central, explorando dimensiones expresivas, experimentales o culturales.';
+  const introLines = wrapText(introText, introFont);
+  const introH     = introLines.length * sItemLh + sGap;
+
   const wrapped = sections.map(sec => ({
     hLines: wrapText(sec.header, hdrFont),
     iLines: sec.items.map(item => wrapText(item, itemFont)),
   }));
 
-  let sectionsH = 0;
+  let sectionsH = introH;
   for (const w of wrapped) {
     sectionsH += w.hLines.length * sHdrLh;
     for (const il of w.iLines) sectionsH += il.length * sItemLh;
@@ -1221,17 +1226,9 @@ function drawSlide5(p) {
 
   const listY = tY + titleH + pad;
 
-  const postLines = [
-    'Postula en: Salvador Sanfuentes 2221',
-    'Convocatoria: 23 Abril — 12 Mayo 2026'
-  ];
-  const postLh = 38;
-  const pY     = listY + sectionsH + pad;
-  const postH  = postLines.length * postLh;
-
   // ── Rectángulo unificado borde a borde ──
   const blockTop = tY - pad;
-  const blockH   = (pY + postH + pad) - blockTop;
+  const blockH   = (listY + sectionsH + pad) - blockTop;
   ctx.save();
   ctx.fillStyle = `rgba(${bgR},${bgG},${bgB},0.92)`;
   ctx.fillRect(0, blockTop, CANVAS_W, blockH);
@@ -1249,6 +1246,9 @@ function drawSlide5(p) {
   ctx.textBaseline = 'top'; ctx.textAlign = 'left';
   ctx.fillStyle = `rgb(${fR},${fG},${fB})`;
   let curY = listY;
+  ctx.font = introFont;
+  for (const il of introLines) { ctx.fillText(il, mx, curY); curY += sItemLh; }
+  curY += sGap;
   for (let s = 0; s < sections.length; s++) {
     ctx.font = hdrFont;
     for (const hl of wrapped[s].hLines) { ctx.fillText(hl, mx, curY); curY += sHdrLh; }
@@ -1258,13 +1258,6 @@ function drawSlide5(p) {
     }
     if (s < sections.length - 1) curY += sGap;
   }
-  ctx.restore();
-
-  // ── Texto: postulación ──
-  ctx.save();
-  ctx.font = `normal 24px 'Necto Mono', monospace`; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
-  ctx.fillStyle = `rgb(${fR},${fG},${fB})`;
-  for (let i = 0; i < postLines.length; i++) ctx.fillText(postLines[i], mx, pY + i * postLh);
   ctx.restore();
 
   drawSlide4Logos(p);
