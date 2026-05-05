@@ -87,11 +87,11 @@ const TITLE_LINES  = ['/*Processing', '/*Community', '/*Day — 2026'];
 const SLIDE4_TITLE = ['PROCE', 'SSING', 'COMM', 'UNITY', 'DAY'];
 
 const SLIDE6_MEMBERS = [
-  { name: 'MÓNICA BATE',      desc: 'Artista Visual y Directora del Magíster de artes mediales.' },
+  { name: 'MÓNICA BATE',      desc: 'Artista Visual y Directora del Magíster de artes mediales - UCH' },
   { name: 'DIEGO LÓPEZ',      desc: 'Maker y creador de contenido.' },
-  { name: 'AARÓN MONTOYA',    desc: 'investigadore y artista medial.' },
-  { name: 'ANTEA SAAVEDRA',    desc: 'Artista Visual y Encargada de comunidades.' },
-  { name: 'NICOLÁS MLADINIC', desc: 'Asesor de enconomía creativa.' } 
+  { name: 'AARÓN MONTOYA',    desc: 'investigadore y artista medial - UDP' },
+  { name: 'ANTEA SAAVEDRA',    desc: 'Artista Visual y Encargada de comunidades - CRTIC' },
+  { name: 'NICOLÁS MLADINIC', desc: 'Asesor de enconomía creativa - Corfo' } 
 ];
 
 const INFO_LINES = [
@@ -1300,9 +1300,9 @@ function drawSlide6(p) {
   const textX    = mx;
   const textMaxW = IG_W - mx * 2;
 
-  const nameSz   = 50;
+  const nameSz   = 55;
   const nameFont = `700 ${nameSz}px 'workfaaad-a', monospace`;
-  const descSz   = 27;
+  const descSz   = 30;
   const descFont = `normal ${descSz}px 'Necto Mono', monospace`;
   const descLh   = 32;
 
