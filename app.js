@@ -86,6 +86,14 @@ let WCAG_PALETTES = [];
 const TITLE_LINES  = ['/*Processing', '/*Community', '/*Day — 2026'];
 const SLIDE4_TITLE = ['PROCE', 'SSING', 'COMM', 'UNITY', 'DAY'];
 
+const SLIDE6_MEMBERS = [
+  { name: 'MÓNICA BATE',      desc: 'Artista Visual y Directora del Magíster de artes mediales.' },
+  { name: 'DIEGO LÓPEZ',      desc: 'Maker y creador de contenido.' },
+  { name: 'AARÓN MONTOYA',    desc: 'investigadore y artista medial.' },
+  { name: 'ANTEA SAAVEDRA',    desc: 'Artista Visual y Encargada de comunidades.' },
+  { name: 'NICOLÁS MLADINIC', desc: 'Asesor de enconomía creativa.' } 
+];
+
 const INFO_LINES = [
   'Evento: Processing Community Day',
   'Postula: Proyectos de programación creativa e interacción digital',
@@ -359,7 +367,7 @@ const sketch = (p) => {
 
     const posterAlpha = (state.posterSlide === 4)
       ? (slide4Animation?.getPosterAlpha?.() ?? 0)
-      : (state.posterSlide === 5)
+      : ([5, 6].includes(state.posterSlide))
         ? 1
         : (currentAnimation?.getPosterAlpha?.() ?? 1);
     if (posterAlpha > 0.004) {
@@ -671,13 +679,14 @@ function drawLogos(p) {
    RENDER EDITORIAL
    ===================================================== */
 function drawEditorialContent(p) {
-  if (![4, 5].includes(state.posterSlide) && state.grid.show) drawGrid(p);
+  if (![4, 5, 6].includes(state.posterSlide) && state.grid.show) drawGrid(p);
   if      (state.posterSlide === 0) { drawSlide0(p); }
   else if (state.posterSlide === 1) { drawSlide1(p); }
   else if (state.posterSlide === 2) { drawInfoBlock(p); }
   else if (state.posterSlide === 3) { drawLogosCentered(p); }
   else if (state.posterSlide === 4) { drawSlide4(p); }
   else if (state.posterSlide === 5) { drawSlide5(p); }
+  else if (state.posterSlide === 6) { drawSlide6(p); }
   if (state.showGuides) drawGuides(p);
 }
 
@@ -1264,6 +1273,107 @@ function drawSlide5(p) {
 }
 
 /* =====================================================
+   SLIDE 6 — EQUIPO
+   ===================================================== */
+function drawSlide6(p) {
+  const mx  = state.layout.marginX;
+  const fg  = state.preset.fg;
+  const [fR, fG, fB] = hexRgb(fg);
+  const ctx = p.drawingContext;
+
+  const logoAreaH = 160;
+  const topY      = 60;
+  const bottomY   = IG_H - logoAreaH;
+
+  // ── Animación de píxeles (misma que slide 2) cubriendo todo el canvas ──
+  drawSlide2Pixels(p, 0, bottomY + 40, 0.45);
+
+  const titleSz = 90;
+  const titleLh = 90;
+  const titleFont = `700 ${titleSz}px 'workfaaad-a', monospace`;
+  const title = 'COMISIÓN';
+
+  const titleEndY = topY + titleLh + 20;
+  const membersH  = bottomY - titleEndY - 10;
+  const cardH     = Math.floor(membersH / SLIDE6_MEMBERS.length);
+
+  const textX    = mx;
+  const textMaxW = IG_W - mx * 2;
+
+  const nameSz   = 50;
+  const nameFont = `700 ${nameSz}px 'workfaaad-a', monospace`;
+  const descSz   = 27;
+  const descFont = `normal ${descSz}px 'Necto Mono', monospace`;
+  const descLh   = 32;
+
+  const wrapDesc = (text) => {
+    ctx.font = descFont;
+    const words = text.split(' ');
+    const lines = [];
+    let ln = '';
+    for (const w of words) {
+      const t = ln ? ln + ' ' + w : w;
+      if (ctx.measureText(t).width > textMaxW && ln) { lines.push(ln); ln = w; }
+      else ln = t;
+    }
+    if (ln) lines.push(ln);
+    return lines;
+  };
+
+  // ── Title ──
+  ctx.save();
+  ctx.font = titleFont;
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = `rgb(${fR},${fG},${fB})`;
+  ctx.fillText(title, mx, topY);
+  ctx.restore();
+
+  // ── Member cards ──
+  for (let i = 0; i < SLIDE6_MEMBERS.length; i++) {
+    const member = SLIDE6_MEMBERS[i];
+    const cardY  = titleEndY + i * cardH;
+    const textY  = cardY + Math.floor((cardH - nameSz - descLh) / 2);
+
+    // Divider line above each card
+    if (i > 0) {
+      ctx.save();
+      ctx.strokeStyle = `rgba(${fR},${fG},${fB},0.25)`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, cardY);
+      ctx.lineTo(IG_W, cardY);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Name
+    ctx.save();
+    ctx.font = nameFont;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = `rgb(${fR},${fG},${fB})`;
+    ctx.fillText(member.name, textX, textY);
+    ctx.restore();
+
+    // Description wrapped
+    const descLines = wrapDesc(member.desc);
+    ctx.save();
+    ctx.font = descFont;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = `rgb(${fR},${fG},${fB})`;
+    const descStartY = textY + nameSz + 10;
+    for (let d = 0; d < descLines.length; d++) {
+      ctx.fillText(descLines[d], textX, descStartY + d * descLh);
+    }
+    ctx.restore();
+  }
+
+  drawSlide4Logos(p);
+}
+
+/* =====================================================
    BANNER CONTENT
    ===================================================== */
 function drawBannerContent(p) {
@@ -1638,7 +1748,7 @@ function drawInfoBlock(p) {
   }
 }
 
-function drawSlide2Pixels(p, areaStartY, areaEndY) {
+function drawSlide2Pixels(p, areaStartY, areaEndY, opacityScale = 1) {
   const areaX = 0;
   const areaW = CANVAS_W;
   const areaH = areaEndY - areaStartY;
@@ -1651,7 +1761,7 @@ function drawSlide2Pixels(p, areaStartY, areaEndY) {
 
   const t = p5Instance.frameCount * 0.018;
   const [fR, fG, fB] = hexRgb(state.preset.fg);
-  const opa = Math.min(1, (state.preset.gridOpacity / 100) * 2.2);
+  const opa = Math.min(1, (state.preset.gridOpacity / 100) * 2.2 * opacityScale);
 
   p.drawingContext.save();
   for (let row = 0; row < pRows; row++) {
