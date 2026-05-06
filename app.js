@@ -87,11 +87,11 @@ const TITLE_LINES  = ['/*Processing', '/*Community', '/*Day — 2026'];
 const SLIDE4_TITLE = ['PROCE', 'SSING', 'COMM', 'UNITY', 'DAY'];
 
 const SLIDE6_MEMBERS = [
-  { name: 'MÓNICA BATE',      desc: 'Artista Visual y Directora del Magíster de artes mediales - UCH' },
-  { name: 'DIEGO LÓPEZ',      desc: 'Maker y creador de contenido.' },
-  { name: 'AARÓN MONTOYA',    desc: 'investigadore y artista medial - UDP' },
-  { name: 'ANTEA SAAVEDRA',    desc: 'Artista Visual y Encargada de comunidades - CRTIC' },
-  { name: 'NICOLÁS MLADINIC', desc: 'Asesor de enconomía creativa - Corfo' } 
+  { name: 'MÓNICA BATE',      desc: 'Artista visual y Directora del Magíster de Artes Mediales - UCH' },
+  { name: 'DIEGO LÓPEZ',      desc: 'Maker y Creador de contenido.' },
+  { name: 'AARÓN MONTOYA',    desc: 'Investigadore, Artista medial y Directore del LID - UDP' },
+  { name: 'ANTEA SAAVEDRA',    desc: 'Artista visual y Encargada de Comunidades - CRTIC' },
+  { name: 'NICOLÁS MLADINIC', desc: 'Asesor de Enconomía Creativa - Corfo' } 
 ];
 
 const INFO_LINES = [
@@ -1023,29 +1023,29 @@ function drawSlide4Logos(p) {
   }
 
   // ── Gradiente fondo → transparente (realza logos) ──
-  const [bgR, bgG, bgB] = hexRgb(bg);
-  const lum = (0.299 * bgR + 0.587 * bgG + 0.114 * bgB) / 255;
-  let gR, gG, gB;
-  if (lum > 0.5) {
-    // Fondo claro → versión oscurecida
-    gR = Math.round(bgR * 0.40);
-    gG = Math.round(bgG * 0.40);
-    gB = Math.round(bgB * 0.40);
-  } else {
-    // Fondo oscuro → versión aclarada
-    gR = Math.min(255, bgR + 55);
-    gG = Math.min(255, bgG + 55);
-    gB = Math.min(255, bgB + 55);
+  if (state.posterSlide !== 6) {
+    const [bgR, bgG, bgB] = hexRgb(bg);
+    const lum = (0.299 * bgR + 0.587 * bgG + 0.114 * bgB) / 255;
+    let gR, gG, gB;
+    if (lum > 0.5) {
+      gR = Math.round(bgR * 0.40);
+      gG = Math.round(bgG * 0.40);
+      gB = Math.round(bgB * 0.40);
+    } else {
+      gR = Math.min(255, bgR + 55);
+      gG = Math.min(255, bgG + 55);
+      gB = Math.min(255, bgB + 55);
+    }
+    const gradH = 380;
+    const grad  = ctx.createLinearGradient(0, CANVAS_H, 0, CANVAS_H - gradH);
+    grad.addColorStop(0,    `rgba(${gR},${gG},${gB},0.88)`);
+    grad.addColorStop(0.55, `rgba(${gR},${gG},${gB},0.40)`);
+    grad.addColorStop(1,    `rgba(${gR},${gG},${gB},0)`);
+    ctx.save();
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, CANVAS_H - gradH, CANVAS_W, gradH);
+    ctx.restore();
   }
-  const gradH = 380;
-  const grad  = ctx.createLinearGradient(0, CANVAS_H, 0, CANVAS_H - gradH);
-  grad.addColorStop(0,    `rgba(${gR},${gG},${gB},0.88)`);
-  grad.addColorStop(0.55, `rgba(${gR},${gG},${gB},0.40)`);
-  grad.addColorStop(1,    `rgba(${gR},${gG},${gB},0)`);
-  ctx.save();
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, CANVAS_H - gradH, CANVAS_W, gradH);
-  ctx.restore();
 
   if (!state.showExtraLogos) return;
 
@@ -1295,16 +1295,16 @@ function drawSlide6(p) {
 
   const titleEndY = topY + titleLh + 20;
   const membersH  = bottomY - titleEndY - 10;
-  const cardH     = Math.floor(membersH / SLIDE6_MEMBERS.length);
 
   const textX    = mx;
   const textMaxW = IG_W - mx * 2;
 
   const nameSz   = 55;
   const nameFont = `700 ${nameSz}px 'workfaaad-a', monospace`;
-  const descSz   = 30;
+  const descSz   = 38;
   const descFont = `normal ${descSz}px 'Necto Mono', monospace`;
-  const descLh   = 32;
+  const descLh   = 42;
+  const nameDescGap = 10;
 
   const wrapDesc = (text) => {
     ctx.font = descFont;
@@ -1320,6 +1320,17 @@ function drawSlide6(p) {
     return lines;
   };
 
+  // Pre-calcular líneas y alto real de cada miembro
+  const memberData = SLIDE6_MEMBERS.map(m => {
+    const lines = wrapDesc(m.desc);
+    const h = nameSz + nameDescGap + lines.length * descLh;
+    return { member: m, lines, h };
+  });
+  const totalContentH = memberData.reduce((acc, d) => acc + d.h, 0);
+  const gap = Math.min(60, Math.max(20, Math.floor((membersH - totalContentH) / (memberData.length - 1))));
+  const totalBlockH = totalContentH + gap * (memberData.length - 1);
+  const blockStartY = titleEndY + Math.floor((membersH - totalBlockH) / 2);
+
   // ── Title ──
   ctx.save();
   ctx.font = titleFont;
@@ -1330,44 +1341,30 @@ function drawSlide6(p) {
   ctx.restore();
 
   // ── Member cards ──
-  for (let i = 0; i < SLIDE6_MEMBERS.length; i++) {
-    const member = SLIDE6_MEMBERS[i];
-    const cardY  = titleEndY + i * cardH;
-    const textY  = cardY + Math.floor((cardH - nameSz - descLh) / 2);
-
-    // Divider line above each card
-    if (i > 0) {
-      ctx.save();
-      ctx.strokeStyle = `rgba(${fR},${fG},${fB},0.25)`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(0, cardY);
-      ctx.lineTo(IG_W, cardY);
-      ctx.stroke();
-      ctx.restore();
-    }
-
+  let curY = blockStartY;
+  for (const { member, lines, h } of memberData) {
     // Name
     ctx.save();
     ctx.font = nameFont;
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
     ctx.fillStyle = `rgb(${fR},${fG},${fB})`;
-    ctx.fillText(member.name, textX, textY);
+    ctx.fillText(member.name, textX, curY);
     ctx.restore();
 
     // Description wrapped
-    const descLines = wrapDesc(member.desc);
     ctx.save();
     ctx.font = descFont;
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
     ctx.fillStyle = `rgb(${fR},${fG},${fB})`;
-    const descStartY = textY + nameSz + 10;
-    for (let d = 0; d < descLines.length; d++) {
-      ctx.fillText(descLines[d], textX, descStartY + d * descLh);
+    const descStartY = curY + nameSz + nameDescGap;
+    for (let d = 0; d < lines.length; d++) {
+      ctx.fillText(lines[d], textX, descStartY + d * descLh);
     }
     ctx.restore();
+
+    curY += h + gap;
   }
 
   drawSlide4Logos(p);
