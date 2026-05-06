@@ -88,10 +88,10 @@ const SLIDE4_TITLE = ['PROCE', 'SSING', 'COMM', 'UNITY', 'DAY'];
 
 const SLIDE6_MEMBERS = [
   { name: 'MÓNICA BATE',      desc: 'Artista visual y Directora del Magíster de Artes Mediales - UCH' },
-  { name: 'DIEGO LÓPEZ',      desc: 'Maker y Creador de contenido.' },
+  { name: 'DIEGO LÓPEZ',      desc: 'Maker y Creador de Contenido.' },
   { name: 'AARÓN MONTOYA',    desc: 'Investigadore, Artista medial y Directore del LID - UDP' },
   { name: 'ANTEA SAAVEDRA',    desc: 'Artista visual y Encargada de Comunidades - CRTIC' },
-  { name: 'NICOLÁS MLADINIC', desc: 'Asesor de Enconomía Creativa - Corfo' } 
+  { name: 'NICOLÁS MLADINIC', desc: 'Asesor de Enconomía Creativa - CORFO' } 
 ];
 
 const INFO_LINES = [
