@@ -217,6 +217,7 @@ const state = {
     slide4Anim:      'glitch-overload',
     slide4Leading:   0.74,
     slide4PixelMode: 'multi',
+    slide7Anim:      'glitch-overload',
     params: {
       'letter-physics': {
         text:       'CONVOCATORIA ABIERTA',
@@ -299,7 +300,16 @@ const state = {
   format:              'ig',
   posterSlide:         0,
   showExtraLogos:      true,
-  showConvocatoriaTag: true
+  showConvocatoriaTag: true,
+
+  slide7: {
+    fechaVieja: '12',
+    fechaNueva: 'XX',
+    mes:        'MAYO',
+    holdOld:    3,
+    flipDur:    2,
+    holdNew:    5,
+  }
 };
 
 // Últimos colores válidos (usados para revertir cambios que rompen WCAG AA)
@@ -345,7 +355,7 @@ const sketch = (p) => {
     const [bgR, bgG, bgB] = hexRgb(state.preset.bg);
     p.background(bgR, bgG, bgB);
 
-    if ([4, 5].includes(state.posterSlide)) {
+    if ([4, 5, 7].includes(state.posterSlide)) {
       if (!slide4Animation) initSlide4Animation();
       if (slide4Animation) {
         p.push();
@@ -365,7 +375,7 @@ const sketch = (p) => {
       }
     }
 
-    const posterAlpha = (state.posterSlide === 4)
+    const posterAlpha = ([4, 7].includes(state.posterSlide))
       ? (slide4Animation?.getPosterAlpha?.() ?? 0)
       : ([5, 6].includes(state.posterSlide))
         ? 1
@@ -395,7 +405,7 @@ const sketch = (p) => {
 };
 
 function dispatchMouse(p, type) {
-  const anim = [4, 5].includes(state.posterSlide) ? slide4Animation : currentAnimation;
+  const anim = [4, 5, 7].includes(state.posterSlide) ? slide4Animation : currentAnimation;
   if (!anim) return;
   const canvasEl = document.querySelector('#canvas-container canvas');
   if (!canvasEl) return;
@@ -411,10 +421,18 @@ function initAnimation() {
 }
 
 function initSlide4Animation() {
-  if (!p5Instance || typeof ANIMATIONS_SLIDE4 === 'undefined') return;
-  const AnimClass = ANIMATIONS_SLIDE4[state.anim.slide4Anim];
-  if (!AnimClass) return;
-  slide4Animation = new AnimClass(p5Instance, state);
+  if (!p5Instance) return;
+  if (state.posterSlide === 7) {
+    if (typeof ANIMATIONS_SLIDE7 === 'undefined') return;
+    const AnimClass = ANIMATIONS_SLIDE7[state.anim.slide7Anim];
+    if (!AnimClass) return;
+    slide4Animation = new AnimClass(p5Instance, state);
+  } else {
+    if (typeof ANIMATIONS_SLIDE4 === 'undefined') return;
+    const AnimClass = ANIMATIONS_SLIDE4[state.anim.slide4Anim];
+    if (!AnimClass) return;
+    slide4Animation = new AnimClass(p5Instance, state);
+  }
 }
 
 function switchAnimation(name) {
@@ -679,7 +697,7 @@ function drawLogos(p) {
    RENDER EDITORIAL
    ===================================================== */
 function drawEditorialContent(p) {
-  if (![4, 5, 6].includes(state.posterSlide) && state.grid.show) drawGrid(p);
+  if (![4, 5, 6, 7].includes(state.posterSlide) && state.grid.show) drawGrid(p);
   if      (state.posterSlide === 0) { drawSlide0(p); }
   else if (state.posterSlide === 1) { drawSlide1(p); }
   else if (state.posterSlide === 2) { drawInfoBlock(p); }
@@ -687,6 +705,7 @@ function drawEditorialContent(p) {
   else if (state.posterSlide === 4) { drawSlide4(p); }
   else if (state.posterSlide === 5) { drawSlide5(p); }
   else if (state.posterSlide === 6) { drawSlide6(p); }
+  // slide 7 handled by slide4Animation (full canvas, no editorial overlay)
   if (state.showGuides) drawGuides(p);
 }
 
@@ -2077,15 +2096,21 @@ function applyColorPreset(id) {
 /* =====================================================
    SELECTOR DE ANIMACIONES DINÁMICO
    ===================================================== */
-function rebuildAnimSelect(isSlide45) {
+// mode: 'slide45' | 'slide7' | 'poster'
+function rebuildAnimSelect(mode) {
   const select = document.getElementById('anim-select');
   if (!select) return;
+  const isFullCanvas = mode !== 'poster';
   const leadRow  = document.getElementById('slide4-leading-row');
-  if (leadRow) leadRow.style.display = isSlide45 ? '' : 'none';
+  if (leadRow) leadRow.style.display = (mode === 'slide45') ? '' : 'none';
+  const curAnimVal   = mode === 'slide45' ? state.anim.slide4Anim
+                     : mode === 'slide7'  ? state.anim.slide7Anim : null;
   const pixelRow = document.getElementById('slide4-pixel-mode-row');
-  if (pixelRow) pixelRow.style.display = (isSlide45 && state.anim.slide4Anim === 'pixel-explosion') ? '' : 'none';
-  const options      = isSlide45 ? ANIM_OPTIONS_SLIDE4 : ANIM_OPTIONS_POSTER;
-  const currentValue = isSlide45 ? state.anim.slide4Anim : state.anim.current;
+  if (pixelRow) pixelRow.style.display = (isFullCanvas && curAnimVal === 'pixel-explosion') ? '' : 'none';
+  const options      = isFullCanvas ? ANIM_OPTIONS_SLIDE4 : ANIM_OPTIONS_POSTER;
+  const currentValue = mode === 'slide45' ? state.anim.slide4Anim
+                     : mode === 'slide7'  ? state.anim.slide7Anim
+                     : state.anim.current;
   select.innerHTML   = '';
   for (const opt of options) {
     const el       = document.createElement('option');
@@ -2096,8 +2121,9 @@ function rebuildAnimSelect(isSlide45) {
   }
   if (!options.some(o => o.value === currentValue)) {
     select.value = options[0].value;
-    if (isSlide45) { state.anim.slide4Anim = options[0].value; initSlide4Animation(); }
-    else           { switchAnimation(options[0].value); }
+    if (mode === 'slide45') { state.anim.slide4Anim = options[0].value; initSlide4Animation(); }
+    else if (mode === 'slide7') { state.anim.slide7Anim = options[0].value; initSlide4Animation(); }
+    else { switchAnimation(options[0].value); }
   }
 }
 
@@ -2135,17 +2161,21 @@ function bindControls() {
     if (ctc) ctc.style.display = isBanner ? 'none' : '';
   });
   onChange('poster-slide-select', e => {
-    const prev       = state.posterSlide;
+    const prev        = state.posterSlide;
     state.posterSlide = Number(e.target.value);
-    const wasSlide45 = [4, 5].includes(prev);
-    const isSlide45  = [4, 5].includes(state.posterSlide);
-    if (wasSlide45 !== isSlide45) rebuildAnimSelect(isSlide45);
-    if (isSlide45) {
-      if (!slide4Animation) initSlide4Animation();
+    const prevMode    = [4,5].includes(prev)               ? 'slide45'
+                      : prev === 7                          ? 'slide7' : 'poster';
+    const curMode     = [4,5].includes(state.posterSlide)  ? 'slide45'
+                      : state.posterSlide === 7             ? 'slide7' : 'poster';
+    if (prevMode !== curMode) rebuildAnimSelect(curMode);
+    if ([4, 5, 7].includes(state.posterSlide)) {
+      if (!slide4Animation || prevMode !== curMode) initSlide4Animation();
     } else {
       slide4Animation = null;
       if (currentAnimation) currentAnimation.reset();
     }
+    const s7c = document.getElementById('slide7-controls');
+    if (s7c) s7c.style.display = state.posterSlide === 7 ? '' : 'none';
   });
   onCheck('extra-logos-toggle', e => {
     state.showExtraLogos = e.target.checked;
@@ -2154,6 +2184,13 @@ function bindControls() {
     state.showConvocatoriaTag = e.target.checked;
   });
   onClick('btn-randomize-banner', () => { randomizeBannerGrid(); showToast('Banner aleatorio'); });
+
+  // ——— Slide 7 ———
+  onInput('slide7-fecha-vieja', e => { state.slide7.fechaVieja = e.target.value; if (slide4Animation) slide4Animation.reset(); });
+  onInput('slide7-fecha-nueva', e => { state.slide7.fechaNueva = e.target.value; if (slide4Animation) slide4Animation.reset(); });
+  onInput('slide7-mes',         e => { state.slide7.mes        = e.target.value; if (slide4Animation) slide4Animation.reset(); });
+  slider('slide7-hold-old', 'slide7-hold-old-val', v => { state.slide7.holdOld = v; });
+  slider('slide7-flip-dur', 'slide7-flip-dur-val', v => { state.slide7.flipDur = v; });
 
   // ——— Layout y Grilla ———
   slider('margin-val',   'margin-disp',    v => { state.layout.margin = v; });
@@ -2252,10 +2289,14 @@ function bindControls() {
 
   // ——— Animación ———
   onChange('anim-select', e => {
+    const pixelRow = document.getElementById('slide4-pixel-mode-row');
     if ([4, 5].includes(state.posterSlide)) {
       state.anim.slide4Anim = e.target.value;
       initSlide4Animation();
-      const pixelRow = document.getElementById('slide4-pixel-mode-row');
+      if (pixelRow) pixelRow.style.display = e.target.value === 'pixel-explosion' ? '' : 'none';
+    } else if (state.posterSlide === 7) {
+      state.anim.slide7Anim = e.target.value;
+      initSlide4Animation();
       if (pixelRow) pixelRow.style.display = e.target.value === 'pixel-explosion' ? '' : 'none';
     } else {
       switchAnimation(e.target.value);
@@ -2265,29 +2306,29 @@ function bindControls() {
   onChange('anim-blend',  e => { state.anim.blendMode = e.target.value; });
   onChange('anim-font',   e => {
     state.anim.font = e.target.value;
-    const anim = [4, 5].includes(state.posterSlide) ? slide4Animation : currentAnimation;
+    const anim = [4, 5, 7].includes(state.posterSlide) ? slide4Animation : currentAnimation;
     if (anim) anim.reset();
   });
   slider('slide4-leading', 'slide4-leading-val', v => {
     state.anim.slide4Leading = v;
-    if ([4, 5].includes(state.posterSlide)) initSlide4Animation();
+    if ([4, 5].includes(state.posterSlide)) initSlide4Animation(); // leading only affects slide 4/5
   }, 0.01, 2);
   slider('anim-speed', 'anim-speed-val', v => { state.anim.speed = v; }, 0.1, 1);
   slider('anim-text-size', 'anim-text-size-val', v => {
     state.anim.textSize = Math.round(v);
-    const anim = [4, 5].includes(state.posterSlide) ? slide4Animation : currentAnimation;
+    const anim = [4, 5, 7].includes(state.posterSlide) ? slide4Animation : currentAnimation;
     if (anim) anim.reset();
   });
   onChange('anim-seed', e => {
     state.anim.seed = parseInt(e.target.value) || 0;
-    if ([4, 5].includes(state.posterSlide)) initSlide4Animation();
+    if ([4, 5, 7].includes(state.posterSlide)) initSlide4Animation();
     else initAnimation();
   });
   onClick('btn-randomize-anim', () => {
     const seed = Math.floor(Math.random() * 99999);
     state.anim.seed = seed;
     el('anim-seed').value = seed;
-    if ([4, 5].includes(state.posterSlide)) initSlide4Animation();
+    if ([4, 5, 7].includes(state.posterSlide)) initSlide4Animation();
     else initAnimation();
     showToast('Nueva semilla: ' + seed);
   });
@@ -2312,7 +2353,7 @@ function bindControls() {
   });
 
   onClick('btn-reset', () => {
-    const anim = [4, 5].includes(state.posterSlide) ? slide4Animation : currentAnimation;
+    const anim = [4, 5, 7].includes(state.posterSlide) ? slide4Animation : currentAnimation;
     if (anim) anim.reset();
     showToast('Animación reiniciada');
   });
@@ -2382,7 +2423,11 @@ function exportVideo() {
   };
 
   // Reiniciar animación desde el principio antes de grabar
-  if (currentAnimation) currentAnimation.reset();
+  if ([4, 5, 7].includes(state.posterSlide)) {
+    if (slide4Animation) slide4Animation.reset();
+  } else {
+    if (currentAnimation) currentAnimation.reset();
+  }
 
   showProgress(true, 'Grabando...');
   rec.start();

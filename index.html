@@ -92,6 +92,7 @@
                 <option value="4">4 — Hero visual</option>
                 <option value="5">5 — ¿Qué buscamos?</option>
                 <option value="6">6 — Equipo</option>
+                <option value="7">7 — Extensión de plazo</option>
               </select>
             </div>
             <div class="sub-group" id="extra-logos-controls">
@@ -108,6 +109,18 @@
             </div>
             <div class="sub-group" id="banner-controls" style="display:none">
               <button id="btn-randomize-banner" class="btn-action" style="width:100%">Randomizar pixeles</button>
+            </div>
+            <div class="sub-group" id="slide7-controls" style="display:none">
+              <div class="sub-label">Día anterior</div>
+              <input type="text" id="slide7-fecha-vieja" class="text-input" value="12">
+              <div class="sub-label">Día nuevo</div>
+              <input type="text" id="slide7-fecha-nueva" class="text-input" value="XX">
+              <div class="sub-label">Mes</div>
+              <input type="text" id="slide7-mes" class="text-input" value="MAYO">
+              <div class="sub-label">Hold anterior <span class="val" id="slide7-hold-old-val">3</span>s</div>
+              <input type="range" id="slide7-hold-old" min="1" max="8" value="3" class="slider">
+              <div class="sub-label">Duración transición <span class="val" id="slide7-flip-dur-val">2</span>s</div>
+              <input type="range" id="slide7-flip-dur" min="1" max="5" value="2" class="slider">
             </div>
           </div>
         </details>
