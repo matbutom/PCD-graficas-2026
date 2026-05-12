@@ -318,12 +318,12 @@ const state = {
   showConvocatoriaTag: true,
 
   slide7: {
-    fechaVieja: "12",
+    fechaVieja: "21",
     fechaNueva: "26",
     mes: "Mayo",
-    holdOld: 3,
-    flipDur: 4,
-    holdNew: 5,
+    holdOld: 1.5,
+    flipDur: 0.8,
+    hideEditorial: false, // <--- Asegúrate de que esta línea esté presente
   },
 };
 
@@ -796,90 +796,85 @@ function ensureSlide7TextGrid(anim, p, text) {
   anim._slide7Text = text;
   anim._slide7GridReady = false;
 
-  const cols = anim._cols, rows = anim._rows;
-  const cW = anim._cW || anim._cellSz || 10;
-  const cH = anim._cH || 10; // Usamos cH para la altura real de celda
-  const bufW = cols * cW, bufH = rows * cH;
+  const cols = anim._cols,
+    rows = anim._rows;
+  const cW = anim._cW || 10,
+    cH = anim._cH || 10;
   const [bgR, bgG, bgB] = anim.getBg();
-
-  const off = p.createGraphics(bufW, bufH);
+  const off = p.createGraphics(cols * cW, rows * cH);
   off.pixelDensity(1);
   off.background(bgR, bgG, bgB);
   const ctx = off.drawingContext;
   const font = "'workfaaad-a', monospace";
 
+  // Configuración idéntica al SVG
   const lines = [
-    { text: "Convocatoria PCD 2026", weight: 400 },
-    { text: "Extensión", weight: 700 },
-    { text: "Plazo", weight: 700 },
-    { text: "26", weight: 700 },
-    { text: "de Mayo", weight: 400 },
+    { text: "Convocatoria PCD — 2026", size: 52, weight: 400 },
+    { text: "Extensión Plazo", size: 186, weight: 700 },
+    { text: "26", size: 720, weight: 700 },
+    { text: "de Mayo", size: 186, weight: 400 },
   ];
 
-  // 1. REPLICAR MATEMÁTICA DE ANCHO
-  const availWidth = CANVAS_W * 0.85;
-  let refFontSize = 550;
-  ctx.font = `700 ${refFontSize}px ${font}`;
-  while(ctx.measureText("26").width > availWidth && refFontSize > 10) {
-    refFontSize -= 5;
-    ctx.font = `700 ${refFontSize}px ${font}`;
+  const availW = CANVAS_W * 0.9;
+  ctx.font = `700 ${lines[2].size}px ${font}`;
+  while (ctx.measureText(lines[2].text).width > availW) {
+    lines[2].size -= 10;
+    ctx.font = `700 ${lines[2].size}px ${font}`;
   }
-  const targetW = ctx.measureText("26").width;
 
-  // 2. REPLICAR MÉTRICAS DE ALTURA
-  const inter = 0.85;
-  const metrics = lines.map(line => {
-    const testSize = 100;
-    ctx.font = `${line.weight} ${testSize}px ${font}`;
-    return { ...line, size: testSize * (targetW / ctx.measureText(line.text).width) };
-  });
+  const inter = 0.92;
+  const totalH = lines.reduce((acc, l) => acc + l.size * inter, 0);
+  let curY = CANVAS_H / 2 - totalH / 2;
 
-  const totalH = metrics.reduce((acc, l) => acc + (l.size * inter), 0);
-  let curY = (CANVAS_H / 2) - (totalH / 2);
-
-  // 3. POSICIONAR EL GLITCH (Bajamos curY hasta llegar a la línea del "26")
   let finalSize26 = 0;
-  for (const line of metrics) {
+  for (const line of lines) {
     if (line.text === text) {
       finalSize26 = line.size;
-      break; // Aquí curY ya está en la posición correcta para el 26
+      break;
     }
     curY += line.size * inter;
   }
 
-  // 4. RENDER AL BUFFER
   ctx.font = `700 ${finalSize26}px ${font}`;
   ctx.fillStyle = "black";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  ctx.fillText(text, bufW / 2, curY);
+  ctx.fillText(text, (cols * cW) / 2, curY);
 
   off.loadPixels();
   const grid = new Uint8Array(cols * rows);
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const idx = (Math.round((r + 0.5) * cH) * bufW + Math.round((c + 0.5) * cW)) * 4;
-      grid[r * cols + c] = (Math.abs(off.pixels[idx] - bgR) + Math.abs(off.pixels[idx+1] - bgG) + Math.abs(off.pixels[idx+2] - bgB)) > 45 ? 1 : 0;
+      const idx =
+        (Math.round((r + 0.5) * cH) * off.width + Math.round((c + 0.5) * cW)) *
+        4;
+      grid[r * cols + c] =
+        Math.abs(off.pixels[idx] - bgR) +
+          Math.abs(off.pixels[idx + 1] - bgG) +
+          Math.abs(off.pixels[idx + 2] - bgB) >
+        45
+          ? 1
+          : 0;
     }
   }
   off.remove();
 
-  // Reset de animación
   anim._grid = grid;
-  const N = cols * rows;
-  const isGlitch = anim.constructor.name === "GlitchOverload";
-  anim._on = new Uint8Array(N);
-  anim._timer = new Uint8Array(N);
-  anim._ci = new Uint8Array(N);
-  if (isGlitch) anim._ch = new Uint8Array(N);
-
-  for (let i = 0; i < N; i++) {
-    const isText = grid[i] === 1;
-    anim._on[i] = p.random() < (isText ? 0.92 : 0.007) ? 1 : 0;
-    anim._timer[i] = Math.floor(p.random(1, 26));
-    anim._ci[i] = isText ? (p.random() < 0.72 ? 0 : Math.floor(p.random(1, 7))) : Math.floor(p.random(1, 7));
-    if (isGlitch) anim._ch[i] = Math.floor(p.random(anim._chars.length));
-  }
+  anim._on = new Uint8Array(grid.length).map((_, i) =>
+    p.random() < (grid[i] ? 0.92 : 0.007) ? 1 : 0,
+  );
+  anim._timer = new Uint8Array(grid.length).map(() =>
+    Math.floor(p.random(1, 26)),
+  );
+  anim._ci = new Uint8Array(grid.length).map((_, i) =>
+    grid[i]
+      ? p.random() < 0.72
+        ? 0
+        : Math.floor(p.random(1, 7))
+      : Math.floor(p.random(1, 7)),
+  );
+  if (anim.constructor.name === "GlitchOverload")
+    anim._ch = new Uint8Array(grid.length).map(() => Math.floor(p.random(25)));
   anim._slide7GridReady = true;
 }
 
@@ -889,7 +884,7 @@ function drawSlide0(p) {
   const fg = state.preset.fg;
   const bg = state.preset.bg;
   const animColor = state.preset.animColor;
-  
+
   const [fR, fG, fB] = hexRgb(fg);
   const [aR, aG, aB] = hexRgb(animColor);
   const [bR, bG, bB] = hexRgb(bg); // Obtenemos componentes del color de fondo
@@ -913,29 +908,29 @@ function drawSlide0(p) {
   const tagH = 55;
   p.push();
   p.noStroke();
-  
+
   // Fondo del banner: usamos el color principal (foreground) con opacidad
   p.drawingContext.fillStyle = `rgba(${fR},${fG},${fB},0.70)`;
   p.drawingContext.fillRect(0, tagY, CANVAS_W, tagH);
-  
+
   p.drawingContext.font = `400 20px 'Necto Mono', monospace`;
-  p.drawingContext.letterSpacing = '2.4px';
-  p.drawingContext.textBaseline = 'middle';
-  p.drawingContext.textAlign = 'left';
+  p.drawingContext.letterSpacing = "2.4px";
+  p.drawingContext.textBaseline = "middle";
+  p.drawingContext.textAlign = "left";
 
   // CAMBIO SOLICITADO: El texto ahora usa el color de FONDO para contrastar con la franja
-  p.drawingContext.fillStyle = `rgb(${bR},${bG},${bB})`; 
-  p.drawingContext.fillText('EXTENSIÓN DE PLAZO', mx + 12, tagH / 2);
-  p.drawingContext.letterSpacing = '0px';
-  
+  p.drawingContext.fillStyle = `rgb(${bR},${bG},${bB})`;
+  p.drawingContext.fillText("EXTENSIÓN DE PLAZO", mx + 12, tagH / 2);
+  p.drawingContext.letterSpacing = "0px";
+
   // Línea decorativa inferior de la franja
-  p.drawingContext.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+  p.drawingContext.strokeStyle = "rgba(255, 255, 255, 0.35)";
   p.drawingContext.lineWidth = 2;
   p.drawingContext.beginPath();
   p.drawingContext.moveTo(0, tagH);
   p.drawingContext.lineTo(CANVAS_W, tagH);
   p.drawingContext.stroke();
-  
+
   p.pop();
 
   // ── Título (Processing Community Day) ──
@@ -946,7 +941,7 @@ function drawSlide0(p) {
   p.drawingContext.font = `700 ${fontSize}px 'workfaaad-a', monospace`;
   p.drawingContext.textBaseline = "top";
   p.drawingContext.textAlign = "left";
-  
+
   for (let i = 0; i < TITLE_LINES.length; i++) {
     const line = TITLE_LINES[i];
     const lineY = titleY + i * lh;
@@ -983,7 +978,8 @@ function drawSlide0(p) {
     const isLast = i === INFO_LINES.length - 1;
     if (colon > -1) {
       const key = '"' + line.slice(0, colon).trim() + '": ';
-      const val = '"' + line.slice(colon + 1).trim() + '"' + (isLast ? "" : ",");
+      const val =
+        '"' + line.slice(colon + 1).trim() + '"' + (isLast ? "" : ",");
       p.drawingContext.font = `700 ${infoSize}px 'Necto Mono', monospace`;
       const keyW = p.drawingContext.measureText(key).width;
       p.drawingContext.fillText(key, indent, y);
@@ -1014,20 +1010,25 @@ function drawSlide0(p) {
     const ctx = p.drawingContext;
 
     const cFaad = _logosImgCache["faad_lockup-principal"];
-    const faadW = cFaad && cFaad.img.naturalWidth ? logoH * (cFaad.img.naturalWidth / cFaad.img.naturalHeight) : 0;
+    const faadW =
+      cFaad && cFaad.img.naturalWidth
+        ? logoH * (cFaad.img.naturalWidth / cFaad.img.naturalHeight)
+        : 0;
     if (cFaad && cFaad.img.complete && faadW > 0) {
       ctx.drawImage(cFaad.img, 40, CANVAS_H - 10 - logoH, faadW, logoH);
     }
 
     const extraLogos = ["LID", "crtic", "processingFoundation"];
     const extraScales = { LID: 0.72, crtic: 1.0, processingFoundation: 1.0 };
-    const extraWidths = extraLogos.map(name => {
+    const extraWidths = extraLogos.map((name) => {
       const c = _logosImgCache[name];
-      return (c && c.img.complete) ? (logoH * extraScales[name] * (c.img.naturalWidth / c.img.naturalHeight)) : 0;
+      return c && c.img.complete
+        ? logoH * extraScales[name] * (c.img.naturalWidth / c.img.naturalHeight)
+        : 0;
     });
 
     const totalExtraW = extraWidths.reduce((a, w) => a + w, 0);
-    const spaceAfter = (CANVAS_W - mx) - (mx + faadW);
+    const spaceAfter = CANVAS_W - mx - (mx + faadW);
     const gap = (spaceAfter - totalExtraW) / extraLogos.length;
     let x = mx + faadW + gap;
 
@@ -1703,54 +1704,40 @@ function drawSlide7(p) {
   const font = "'workfaaad-a', monospace";
 
   const lines = [
-    { text: "Convocatoria PCD 2026", weight: 400 },
-    { text: "Extensión", weight: 700 },
-    { text: "Plazo", weight: 700 },
-    { text: "26", weight: 700 }, // El 26 es el anchor de ancho
-    { text: "de Mayo", weight: 400 },
+    { text: "Convocatoria PCD — 2026", size: 52, weight: 400 },
+    { text: "Extensión Plazo", size: 186, weight: 700 }, // 140pt
+    { text: "26", size: 720, weight: 700 },
+    { text: "de Mayo", size: 186, weight: 400 }, // 140pt
   ];
 
-  ctx.save();
-  ctx.textBaseline = "top";
-  ctx.textAlign = "center";
-  ctx.fillStyle = `rgb(${fR},${fG},${fB})`;
-
-  // 1. EL "26" MANDA EL ANCHO (Ajuste al 85% del canvas para que no se escape)
-  const availWidth = CANVAS_W * 0.85;
-  let refFontSize = 550;
-  ctx.font = `700 ${refFontSize}px ${font}`;
-  while(ctx.measureText("26").width > availWidth && refFontSize > 10) {
-    refFontSize -= 5;
-    ctx.font = `700 ${refFontSize}px ${font}`;
+  const availW = CANVAS_W * 0.9;
+  ctx.font = `700 ${lines[2].size}px ${font}`;
+  while (ctx.measureText(lines[2].text).width > availW) {
+    lines[2].size -= 10;
+    ctx.font = `700 ${lines[2].size}px ${font}`;
   }
-  const targetWidth = ctx.measureText("26").width;
 
-  // 2. CALCULAR TAMAÑOS (Todos igualan el ancho del 26)
-  const inter = 0.85; // Interlineado base
-  const lineMetrics = lines.map(line => {
-    const testSize = 100;
-    ctx.font = `${line.weight} ${testSize}px ${font}`;
-    const measuredW = ctx.measureText(line.text).width;
-    const finalSize = testSize * (targetWidth / measuredW);
-    return { ...line, size: finalSize };
-  });
+  const inter = 0.92;
+  const totalH = lines.reduce((acc, l) => acc + l.size * inter, 0);
+  let currentY = CANVAS_H / 2 - totalH / 2;
 
-  // 3. CENTRADO VERTICAL (Calculamos el alto total del bloque)
-  const totalH = lineMetrics.reduce((acc, l) => acc + (l.size * inter), 0);
-  let currentY = (CANVAS_H / 2) - (totalH / 2);
+  if (!state.slide7.hideEditorial) {
+    ctx.save();
+    ctx.textBaseline = "top";
+    ctx.textAlign = "center";
+    ctx.fillStyle = `rgb(${fR},${fG},${fB})`;
 
-  // 4. RENDER (Dibujamos todo menos el 26)
-  lineMetrics.forEach(line => {
-    if (line.text !== "26") {
-      ctx.font = `${line.weight} ${line.size}px ${font}`;
-      ctx.fillText(line.text, CANVAS_W / 2, currentY);
-    }
-    // Bajamos el cursor para la siguiente línea
-    currentY += line.size * inter;
-  });
+    lines.forEach((line) => {
+      if (line.text !== "26") {
+        ctx.font = `${line.weight} ${line.size}px ${font}`;
+        ctx.fillText(line.text, CANVAS_W / 2, currentY);
+      }
+      currentY += line.size * inter;
+    });
+    ctx.restore();
 
-  ctx.restore();
-  if (typeof drawSlide4Logos === "function") drawSlide4Logos(p);
+    if (typeof drawSlide4Logos === "function") drawSlide4Logos(p);
+  }
 }
 
 /* Función auxiliar para dibujar texto con kerning (espaciado entre letras) */
@@ -2637,9 +2624,12 @@ function bindControls() {
     if (elc) elc.style.display = isBanner ? "none" : "";
     if (ctc) ctc.style.display = isBanner ? "none" : "";
   });
+
   onChange("poster-slide-select", (e) => {
     const prev = state.posterSlide;
     state.posterSlide = Number(e.target.value);
+
+    // Determinar el modo de animación (Hero Visual vs Poster Estándar)
     const prevMode = [4, 5].includes(prev)
       ? "slide45"
       : prev === 7
@@ -2650,28 +2640,53 @@ function bindControls() {
       : state.posterSlide === 7
         ? "slide7"
         : "poster";
+
+    // Reconstruir selector de animaciones si cambiamos de modo
     if (prevMode !== curMode) rebuildAnimSelect(curMode);
-    if ([4, 5].includes(state.posterSlide)) {
+
+    // Gestionar la instancia de animación de capa superior (Slide 4/5/7)
+    if ([4, 5, 7].includes(state.posterSlide)) {
       if (!slide4Animation || prevMode !== curMode) initSlide4Animation();
     } else {
       slide4Animation = null;
       if (currentAnimation) currentAnimation.reset();
     }
+
+    // Mostrar/Ocultar inputs de fecha de Slide 7
     const s7c = document.getElementById("slide7-controls");
     if (s7c) s7c.style.display = state.posterSlide === 7 ? "" : "none";
+
+    // Mostrar/Ocultar botón de visibilidad (Editorial) de Slide 7
+    const s7Extra = document.getElementById("s7-extra-ctrls");
+    if (s7Extra) {
+      s7Extra.classList.toggle("hidden", state.posterSlide !== 7);
+    }
   });
+
   onCheck("extra-logos-toggle", (e) => {
     state.showExtraLogos = e.target.checked;
   });
+
   onCheck("convocatoria-tag-toggle", (e) => {
     state.showConvocatoriaTag = e.target.checked;
   });
+
   onClick("btn-randomize-banner", () => {
     randomizeBannerGrid();
     showToast("Banner aleatorio");
   });
 
   // ——— Slide 7 ———
+
+  state.slide7 = {
+    fechaVieja: "21",
+    fechaNueva: "26",
+    mes: "Mayo",
+    holdOld: 1.5,
+    flipDur: 0.8,
+    hideEditorial: false, // <--- Agrega esto
+  };
+
   onInput("slide7-fecha-vieja", (e) => {
     state.slide7.fechaVieja = e.target.value;
     if (slide4Animation) slide4Animation.reset();
@@ -2689,6 +2704,18 @@ function bindControls() {
   });
   slider("slide7-flip-dur", "slide7-flip-dur-val", (v) => {
     state.slide7.flipDur = v;
+  });
+
+  // Control para ocultar/mostrar editorial en Slide 7
+  onClick("btn-toggle-s7-editorial", () => {
+    state.slide7.hideEditorial = !state.slide7.hideEditorial;
+    const btn = document.getElementById("btn-toggle-s7-editorial");
+    if (btn) {
+      btn.textContent = state.slide7.hideEditorial
+        ? "Mostrar Textos"
+        : "Ocultar Textos";
+      btn.classList.toggle("active", state.slide7.hideEditorial);
+    }
   });
 
   // ——— Layout y Grilla ———
