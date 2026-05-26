@@ -332,6 +332,7 @@ const state = {
     convocatoriaSize: 125,
     abiertaSize: 140,
     pcdSize: 140,
+    leading: 0.96,
     boldness: 0.4,
   },
 };
@@ -855,7 +856,7 @@ function drawSlide8TextBlock(p, maskOnly = false) {
   const ctx = p.drawingContext;
   const font = "'workfaaad-a', monospace";
   const lines = getSlide8Lines(ctx, font);
-  const inter = 0.96;
+  const inter = state.slide8.leading ?? 0.96;
   const totalH = lines.reduce((acc, l) => acc + l.size * inter, 0);
   let currentY = CANVAS_H / 2 - totalH / 2;
 
@@ -918,6 +919,7 @@ function ensureSlide8TextGrid(anim, p) {
     s8.convocatoriaSize,
     s8.abiertaSize,
     s8.pcdSize,
+    s8.leading,
     s8.boldness,
   ].join(":");
   if (
@@ -2965,6 +2967,16 @@ function bindControls() {
     state.slide8.pcdSize = Math.round(v);
     resetSlide8AnimationMask();
   });
+  slider(
+    "slide8-leading",
+    "slide8-leading-val",
+    (v) => {
+      state.slide8.leading = v;
+      resetSlide8AnimationMask();
+    },
+    0.01,
+    2,
+  );
   slider("slide8-boldness", "slide8-boldness-val", (v) => {
     state.slide8.boldness = v;
     resetSlide8AnimationMask();
