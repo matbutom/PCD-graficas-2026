@@ -15,9 +15,10 @@ class GlitchOverload extends BaseAnimation {
     super(p, state);
     this.seed = Math.random() * 99999;
     this._f = 0;
-    this._cW = 6; // ancho de celda en px
-    this._cH = 10; // alto de celda en px
-    this._fSz = 9; // tamaño de fuente
+    const isSlide8 = state.posterSlide === 8;
+    this._cW = isSlide8 ? 4 : 6; // ancho de celda en px
+    this._cH = isSlide8 ? 7 : 10; // alto de celda en px
+    this._fSz = isSlide8 ? 7 : 9; // tamaño de fuente
     this._cols = Math.ceil(CANVAS_W / this._cW);
     this._rows = Math.ceil(CANVAS_H / this._cH);
     this._grid = null; // Uint8Array: 1=letra, 0=fondo
@@ -179,7 +180,8 @@ class GlitchOverload extends BaseAnimation {
     this._ci = new Uint8Array(N);
     for (let i = 0; i < N; i++) {
       const isText = this._grid[i] === 1;
-      this._on[i] = p.random() < (isText ? 0.92 : 0.007) ? 1 : 0;
+      const onRate = this.state.posterSlide === 8 ? 0.98 : 0.92;
+      this._on[i] = p.random() < (isText ? onRate : 0.007) ? 1 : 0;
       this._ch[i] = Math.floor(p.random(nCh));
       this._timer[i] = Math.floor(p.random(1, 26));
       this._ci[i] = isText
@@ -211,7 +213,8 @@ class GlitchOverload extends BaseAnimation {
         continue;
       }
       const isText = this._grid[i] === 1;
-      this._on[i] = p.random() < (isText ? 0.94 : 0.007) ? 1 : 0;
+      const onRate = this.state.posterSlide === 8 ? 0.985 : 0.94;
+      this._on[i] = p.random() < (isText ? onRate : 0.007) ? 1 : 0;
       this._ch[i] = Math.floor(p.random(nCh));
       this._timer[i] = Math.max(1, Math.floor(p.random(2, 26) / spd));
       if (isText && p.random() < 0.12) {
@@ -286,6 +289,8 @@ class GlitchOverload extends BaseAnimation {
         const ch = this._chars[this._ch[i]];
         const y = r * cH;
 
+        if (this._textOnly && this._grid[i] === 0) continue;
+
         if (this._grid[i] === 0) {
           // Celda de fondo
           const sz = BG_SIZES[this._ch[i] % BG_SIZES.length];
@@ -319,7 +324,10 @@ class GlitchOverload extends BaseAnimation {
     }
 
     // 2. Caracteres del título — opacos, protagonistas
-    const mono = this.state.posterSlide === 5 || this.state.posterSlide === 7;
+    const mono =
+      this.state.posterSlide === 5 ||
+      this.state.posterSlide === 7 ||
+      this.state.posterSlide === 8;
 
     // CAMBIO CLAVE: Permitimos dibujar si NO es la slide 7 O si se fuerza desde el overlay (forceProtagonist)
     if (this.state.posterSlide !== 7 || this.forceProtagonist) {
@@ -352,7 +360,10 @@ class GlitchOverload extends BaseAnimation {
     ctx.restore();
 
     // Dibujamos logos solo si no es la Slide 7 para no ensuciar el diseño de bloque
-    if (typeof drawSlide4Logos === "function" && this.state.posterSlide !== 7)
+    if (
+      typeof drawSlide4Logos === "function" &&
+      ![7, 8].includes(this.state.posterSlide)
+    )
       drawSlide4Logos(p);
   }
 
@@ -381,7 +392,7 @@ class PixelExplosion extends BaseAnimation {
     super(p, state);
     this.seed = Math.random() * 99999;
     this._frame = 0;
-    this._cellSz = 10;
+    this._cellSz = state.posterSlide === 8 ? 7 : 10;
     this._gap = 1;
     this._cols = Math.ceil(CANVAS_W / this._cellSz);
     this._rows = Math.ceil(CANVAS_H / this._cellSz);
@@ -482,7 +493,8 @@ class PixelExplosion extends BaseAnimation {
     this._ci = new Uint8Array(N);
     for (let i = 0; i < N; i++) {
       const isText = this._grid[i] === 1;
-      this._on[i] = p.random() < (isText ? 0.92 : 0.015) ? 1 : 0;
+      const onRate = this.state.posterSlide === 8 ? 0.98 : 0.92;
+      this._on[i] = p.random() < (isText ? onRate : 0.015) ? 1 : 0;
       this._timer[i] = Math.floor(p.random(1, 24));
       this._ci[i] = Math.floor(p.random(this._palette.length));
     }
@@ -505,7 +517,8 @@ class PixelExplosion extends BaseAnimation {
       }
       const isText = this._grid[i] === 1;
       // Snap instantáneo: sin interpolación
-      this._on[i] = p.random() < (isText ? 0.94 : 0.015) ? 1 : 0;
+      const onRate = this.state.posterSlide === 8 ? 0.985 : 0.94;
+      this._on[i] = p.random() < (isText ? onRate : 0.015) ? 1 : 0;
       this._timer[i] = Math.max(1, Math.floor(p.random(2, 22) / spd));
       // Cambio de color ocasional
       if (isText && p.random() < 0.1) {
@@ -535,6 +548,7 @@ class PixelExplosion extends BaseAnimation {
       for (let c = 0; c < cols; c++) {
         const i = r * cols + c;
         if (!this._on[i]) continue;
+        if (this._textOnly && this._grid[i] === 0) continue;
 
         const x = c * sz + gap;
         const y = r * sz + gap;
@@ -564,7 +578,10 @@ class PixelExplosion extends BaseAnimation {
 
     ctx.restore();
 
-    if (typeof drawSlide4Logos === "function" && this.state.posterSlide !== 7)
+    if (
+      typeof drawSlide4Logos === "function" &&
+      ![7, 8].includes(this.state.posterSlide)
+    )
       drawSlide4Logos(p);
   }
 

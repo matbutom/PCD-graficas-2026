@@ -325,6 +325,15 @@ const state = {
     flipDur: 0.8,
     hideEditorial: false, // <--- Asegúrate de que esta línea esté presente
   },
+
+  slide8: {
+    splitConvocatoria: false,
+    finalizaSize: 172,
+    convocatoriaSize: 125,
+    abiertaSize: 140,
+    pcdSize: 140,
+    boldness: 0.4,
+  },
 };
 
 // Últimos colores válidos (usados para revertir cambios que rompen WCAG AA)
@@ -396,7 +405,7 @@ const sketch = (p) => {
 
     const posterAlpha = [4].includes(state.posterSlide)
       ? (slide4Animation?.getPosterAlpha?.() ?? 0)
-      : [5, 6, 7].includes(state.posterSlide)
+      : [5, 6, 7, 8].includes(state.posterSlide)
         ? 1
         : (currentAnimation?.getPosterAlpha?.() ?? 1);
     if (posterAlpha > 0.004) {
@@ -411,6 +420,8 @@ const sketch = (p) => {
 
     if (state.posterSlide === 7) {
       drawSlide7Overlay(p);
+    } else if (state.posterSlide === 8) {
+      drawSlide8Overlay(p);
     }
 
     if (fadingOut || fadingIn) tickFade(p);
@@ -456,7 +467,7 @@ function initAnimation() {
 
 function initSlide4Animation() {
   if (!p5Instance) return;
-  if (state.posterSlide === 7) {
+  if ([7, 8].includes(state.posterSlide)) {
     if (typeof ANIMATIONS_SLIDE7 === "undefined") return;
     const AnimClass = ANIMATIONS_SLIDE7[state.anim.slide7Anim];
     if (!AnimClass) return;
@@ -751,7 +762,8 @@ function drawLogos(p) {
    RENDER EDITORIAL
    ===================================================== */
 function drawEditorialContent(p) {
-  if (![4, 5, 6, 7].includes(state.posterSlide) && state.grid.show) drawGrid(p);
+  if (![4, 5, 6, 7, 8].includes(state.posterSlide) && state.grid.show)
+    drawGrid(p);
   if (state.posterSlide === 0) {
     drawSlide0(p);
   } else if (state.posterSlide === 1) {
@@ -768,6 +780,8 @@ function drawEditorialContent(p) {
     drawSlide6(p);
   } else if (state.posterSlide === 7) {
     drawSlide7(p);
+  } else if (state.posterSlide === 8) {
+    drawSlide8(p);
   }
   if (state.showGuides) drawGuides(p);
 }
@@ -789,6 +803,180 @@ function drawSlide7Overlay(p) {
 
   p.image(overlay, 0, 0);
   overlay.remove();
+}
+
+function getSlide8Lines(ctx, font) {
+  const s8 = state.slide8 || {};
+  const finalizaSize = s8.finalizaSize ?? 172;
+  const convocatoriaSize = s8.convocatoriaSize ?? 125;
+  const abiertaSize = s8.abiertaSize ?? 140;
+  const pcdSize = s8.pcdSize ?? 140;
+  const convocatoriaLines = s8.splitConvocatoria
+    ? [
+        { text: "CONVO", size: convocatoriaSize, weight: 900, animated: true },
+        { text: "CATORIA", size: convocatoriaSize, weight: 900, animated: true },
+      ]
+    : [
+        {
+          text: "CONVOCATORIA",
+          size: convocatoriaSize,
+          weight: 900,
+          animated: true,
+        },
+      ];
+  const lines = [
+    { text: "Finaliza la", size: finalizaSize, weight: 400 },
+    ...convocatoriaLines,
+    { text: "ABIERTA", size: abiertaSize, weight: 900, animated: true },
+    { text: "PCD-2026", size: pcdSize, weight: 400 },
+  ];
+  const availW = CANVAS_W * 0.88;
+
+  const reference = lines[lines.length - 1];
+  ctx.font = `${reference.weight} ${reference.size}px ${font}`;
+  while (reference.size > 24 && ctx.measureText(reference.text).width > availW) {
+    reference.size -= 4;
+    ctx.font = `${reference.weight} ${reference.size}px ${font}`;
+  }
+
+  const targetW = ctx.measureText(reference.text).width;
+  for (const line of lines.filter((line) => line.fitToReference)) {
+    ctx.font = `${line.weight} ${line.size}px ${font}`;
+    const currentW = ctx.measureText(line.text).width;
+    if (currentW > 0) line.size *= targetW / currentW;
+  }
+
+  return lines;
+}
+
+function drawSlide8TextBlock(p, maskOnly = false) {
+  const fg = state.preset.fg;
+  const [fR, fG, fB] = hexRgb(fg);
+  const ctx = p.drawingContext;
+  const font = "'workfaaad-a', monospace";
+  const lines = getSlide8Lines(ctx, font);
+  const inter = 0.96;
+  const totalH = lines.reduce((acc, l) => acc + l.size * inter, 0);
+  let currentY = CANVAS_H / 2 - totalH / 2;
+
+  ctx.save();
+  ctx.textBaseline = "top";
+  ctx.textAlign = "center";
+  ctx.fillStyle = maskOnly ? "black" : `rgb(${fR},${fG},${fB})`;
+  if (maskOnly) {
+    ctx.strokeStyle = "black";
+    ctx.lineJoin = "round";
+  }
+
+  for (const line of lines) {
+    if (!maskOnly && line.animated) {
+      currentY += line.size * inter;
+      continue;
+    }
+    if (maskOnly && !line.animated) {
+      currentY += line.size * inter;
+      continue;
+    }
+    ctx.font = `${line.weight} ${line.size}px ${font}`;
+    if (maskOnly && line.animated && state.slide8.boldness > 0) {
+      ctx.lineWidth = state.slide8.boldness;
+      ctx.strokeText(line.text, CANVAS_W / 2 + (line.offsetX || 0), currentY);
+    }
+    ctx.fillText(line.text, CANVAS_W / 2 + (line.offsetX || 0), currentY);
+    currentY += line.size * inter;
+  }
+
+  ctx.restore();
+}
+
+function drawSlide8Overlay(p) {
+  if (!slide4Animation) initSlide4Animation();
+  if (!slide4Animation) return;
+
+  ensureSlide8TextGrid(slide4Animation, p);
+
+  const overlay = p.createGraphics(CANVAS_W, CANVAS_H);
+  overlay.pixelDensity(1);
+  overlay.clear();
+
+  const oldP = slide4Animation.p;
+  slide4Animation.p = overlay;
+  slide4Animation.draw();
+  slide4Animation.p = oldP;
+
+  p.image(overlay, 0, 0);
+  overlay.remove();
+}
+
+function ensureSlide8TextGrid(anim, p) {
+  const s8 = state.slide8 || {};
+  const key = [
+    "slide8",
+    state.preset.bg,
+    s8.splitConvocatoria ? "split" : "single",
+    s8.finalizaSize,
+    s8.convocatoriaSize,
+    s8.abiertaSize,
+    s8.pcdSize,
+    s8.boldness,
+  ].join(":");
+  if (
+    anim._slide8TextKey === key &&
+    anim._slide8GridReady &&
+    anim._grid === anim._slide8Grid
+  )
+    return;
+  anim._slide8TextKey = key;
+  anim._slide8GridReady = false;
+
+  const cols = anim._cols,
+    rows = anim._rows;
+  const cW = anim._cW || anim._cellSz || 10,
+    cH = anim._cH || anim._cellSz || 10;
+  const [bgR, bgG, bgB] = anim.getBg();
+  const off = p.createGraphics(cols * cW, rows * cH);
+  off.pixelDensity(1);
+  off.background(bgR, bgG, bgB);
+  drawSlide8TextBlock(off, true);
+
+  off.loadPixels();
+  const grid = new Uint8Array(cols * rows);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx =
+        (Math.round((r + 0.5) * cH) * off.width + Math.round((c + 0.5) * cW)) *
+        4;
+      grid[r * cols + c] =
+        Math.abs(off.pixels[idx] - bgR) +
+          Math.abs(off.pixels[idx + 1] - bgG) +
+          Math.abs(off.pixels[idx + 2] - bgB) >
+        45
+          ? 1
+          : 0;
+    }
+  }
+  off.remove();
+
+  anim._grid = grid;
+  anim._slide8Grid = grid;
+  anim._slide7GridReady = false;
+  anim._textOnly = true;
+  anim._on = new Uint8Array(grid.length).map((_, i) =>
+    p.random() < (grid[i] ? 0.98 : 0) ? 1 : 0,
+  );
+  anim._timer = new Uint8Array(grid.length).map(() =>
+    Math.floor(p.random(1, 26)),
+  );
+  anim._ci = new Uint8Array(grid.length).map((_, i) =>
+    grid[i]
+      ? p.random() < 0.72
+        ? 0
+        : Math.floor(p.random(1, 7))
+      : 0,
+  );
+  if (anim.constructor.name === "GlitchOverload")
+    anim._ch = new Uint8Array(grid.length).map(() => Math.floor(p.random(25)));
+  anim._slide8GridReady = true;
 }
 
 function ensureSlide7TextGrid(anim, p, text) {
@@ -860,6 +1048,7 @@ function ensureSlide7TextGrid(anim, p, text) {
   off.remove();
 
   anim._grid = grid;
+  anim._slide8GridReady = false;
   anim._on = new Uint8Array(grid.length).map((_, i) =>
     p.random() < (grid[i] ? 0.92 : 0.007) ? 1 : 0,
   );
@@ -1292,7 +1481,7 @@ function drawSlide4Logos(p) {
   }
 
   // ── Gradiente fondo → transparente (realza logos) ──
-  if (![6, 7].includes(state.posterSlide)) {
+  if (![6, 7, 8].includes(state.posterSlide)) {
     const [bgR, bgG, bgB] = hexRgb(bg);
     const lum = (0.299 * bgR + 0.587 * bgG + 0.114 * bgB) / 255;
     let gR, gG, gB;
@@ -1735,6 +1924,19 @@ function drawSlide7(p) {
       currentY += line.size * inter;
     });
     ctx.restore();
+
+    if (typeof drawSlide4Logos === "function") drawSlide4Logos(p);
+  }
+}
+
+/* =====================================================
+   SLIDE 8 — CIERRE CONVOCATORIA
+   ===================================================== */
+
+function drawSlide8(p) {
+  if (!state.slide7.hideEditorial) {
+    drawSlide2Pixels(p, 0, CANVAS_H, 0.55);
+    drawSlide8TextBlock(p);
 
     if (typeof drawSlide4Logos === "function") drawSlide4Logos(p);
   }
@@ -2549,6 +2751,7 @@ function rebuildAnimSelect(mode) {
   if (pixelRow)
     pixelRow.style.display =
       isFullCanvas && curAnimVal === "pixel-explosion" ? "" : "none";
+  updateSlide8TypographyControls();
   const options = isFullCanvas ? ANIM_OPTIONS_SLIDE4 : ANIM_OPTIONS_POSTER;
   const currentValue =
     mode === "slide45"
@@ -2576,6 +2779,27 @@ function rebuildAnimSelect(mode) {
       switchAnimation(options[0].value);
     }
   }
+}
+
+function updateSlide8TypographyControls() {
+  const controls = document.getElementById("slide8-typography-controls");
+  if (controls)
+    controls.style.display = state.posterSlide === 8 ? "" : "none";
+
+  const btn = document.getElementById("btn-toggle-slide8-split");
+  if (btn) {
+    btn.textContent = state.slide8.splitConvocatoria
+      ? "Unir convocatoria"
+      : "Dividir convocatoria";
+    btn.classList.toggle("active", state.slide8.splitConvocatoria);
+  }
+}
+
+function resetSlide8AnimationMask() {
+  if (!slide4Animation) return;
+  slide4Animation._slide8GridReady = false;
+  slide4Animation._slide8TextKey = null;
+  slide4Animation.reset();
 }
 
 /* =====================================================
@@ -2632,12 +2856,12 @@ function bindControls() {
     // Determinar el modo de animación (Hero Visual vs Poster Estándar)
     const prevMode = [4, 5].includes(prev)
       ? "slide45"
-      : prev === 7
+      : [7, 8].includes(prev)
         ? "slide7"
         : "poster";
     const curMode = [4, 5].includes(state.posterSlide)
       ? "slide45"
-      : state.posterSlide === 7
+      : [7, 8].includes(state.posterSlide)
         ? "slide7"
         : "poster";
 
@@ -2645,8 +2869,9 @@ function bindControls() {
     if (prevMode !== curMode) rebuildAnimSelect(curMode);
 
     // Gestionar la instancia de animación de capa superior (Slide 4/5/7)
-    if ([4, 5, 7].includes(state.posterSlide)) {
-      if (!slide4Animation || prevMode !== curMode) initSlide4Animation();
+    if ([4, 5, 7, 8].includes(state.posterSlide)) {
+      if (!slide4Animation || prevMode !== curMode || prev !== state.posterSlide)
+        initSlide4Animation();
     } else {
       slide4Animation = null;
       if (currentAnimation) currentAnimation.reset();
@@ -2661,6 +2886,7 @@ function bindControls() {
     if (s7Extra) {
       s7Extra.classList.toggle("hidden", state.posterSlide !== 7);
     }
+    updateSlide8TypographyControls();
   });
 
   onCheck("extra-logos-toggle", (e) => {
@@ -2717,6 +2943,32 @@ function bindControls() {
       btn.classList.toggle("active", state.slide7.hideEditorial);
     }
   });
+
+  onClick("btn-toggle-slide8-split", () => {
+    state.slide8.splitConvocatoria = !state.slide8.splitConvocatoria;
+    updateSlide8TypographyControls();
+    resetSlide8AnimationMask();
+  });
+  slider("slide8-finaliza-size", "slide8-finaliza-size-val", (v) => {
+    state.slide8.finalizaSize = Math.round(v);
+    resetSlide8AnimationMask();
+  });
+  slider("slide8-convocatoria-size", "slide8-convocatoria-size-val", (v) => {
+    state.slide8.convocatoriaSize = Math.round(v);
+    resetSlide8AnimationMask();
+  });
+  slider("slide8-abierta-size", "slide8-abierta-size-val", (v) => {
+    state.slide8.abiertaSize = Math.round(v);
+    resetSlide8AnimationMask();
+  });
+  slider("slide8-pcd-size", "slide8-pcd-size-val", (v) => {
+    state.slide8.pcdSize = Math.round(v);
+    resetSlide8AnimationMask();
+  });
+  slider("slide8-boldness", "slide8-boldness-val", (v) => {
+    state.slide8.boldness = v;
+    resetSlide8AnimationMask();
+  }, 1, 1);
 
   // ——— Layout y Grilla ———
   slider("margin-val", "margin-disp", (v) => {
@@ -2872,7 +3124,7 @@ function bindControls() {
       if (pixelRow)
         pixelRow.style.display =
           e.target.value === "pixel-explosion" ? "" : "none";
-    } else if (state.posterSlide === 7) {
+    } else if ([7, 8].includes(state.posterSlide)) {
       state.anim.slide7Anim = e.target.value;
       initSlide4Animation();
       if (pixelRow)
@@ -2890,7 +3142,7 @@ function bindControls() {
   });
   onChange("anim-font", (e) => {
     state.anim.font = e.target.value;
-    const anim = [4, 5].includes(state.posterSlide)
+    const anim = [4, 5, 7, 8].includes(state.posterSlide)
       ? slide4Animation
       : currentAnimation;
     if (anim) anim.reset();
@@ -2916,21 +3168,21 @@ function bindControls() {
   );
   slider("anim-text-size", "anim-text-size-val", (v) => {
     state.anim.textSize = Math.round(v);
-    const anim = [4, 5].includes(state.posterSlide)
+    const anim = [4, 5, 7, 8].includes(state.posterSlide)
       ? slide4Animation
       : currentAnimation;
     if (anim) anim.reset();
   });
   onChange("anim-seed", (e) => {
     state.anim.seed = parseInt(e.target.value) || 0;
-    if ([4, 5].includes(state.posterSlide)) initSlide4Animation();
+    if ([4, 5, 7, 8].includes(state.posterSlide)) initSlide4Animation();
     else initAnimation();
   });
   onClick("btn-randomize-anim", () => {
     const seed = Math.floor(Math.random() * 99999);
     state.anim.seed = seed;
     el("anim-seed").value = seed;
-    if ([4, 5].includes(state.posterSlide)) initSlide4Animation();
+    if ([4, 5, 7, 8].includes(state.posterSlide)) initSlide4Animation();
     else initAnimation();
     showToast("Nueva semilla: " + seed);
   });
@@ -2957,7 +3209,7 @@ function bindControls() {
   });
 
   onClick("btn-reset", () => {
-    const anim = [4, 5].includes(state.posterSlide)
+    const anim = [4, 5, 7, 8].includes(state.posterSlide)
       ? slide4Animation
       : currentAnimation;
     if (anim) anim.reset();
@@ -2973,6 +3225,7 @@ function bindControls() {
   });
 
   window.addEventListener("resize", resizeCanvasWrapper);
+  updateSlide8TypographyControls();
 }
 
 /* =====================================================
@@ -3055,7 +3308,7 @@ function exportVideo() {
   };
 
   // Reiniciar animación desde el principio antes de grabar
-  if ([4, 5].includes(state.posterSlide)) {
+  if ([4, 5, 7, 8].includes(state.posterSlide)) {
     if (slide4Animation) slide4Animation.reset();
   } else {
     if (currentAnimation) currentAnimation.reset();
