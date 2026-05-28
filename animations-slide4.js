@@ -16,9 +16,9 @@ class GlitchOverload extends BaseAnimation {
     this.seed = Math.random() * 99999;
     this._f = 0;
     const isSlide8 = state.posterSlide === 8;
-    this._cW = isSlide8 ? 4 : 6; // ancho de celda en px
-    this._cH = isSlide8 ? 7 : 10; // alto de celda en px
-    this._fSz = isSlide8 ? 7 : 9; // tamaño de fuente
+    this._cW = isSlide8 ? 3 : 6; // ancho de celda en px
+    this._cH = isSlide8 ? 5 : 10; // alto de celda en px
+    this._fSz = isSlide8 ? 6 : 9; // tamaño de fuente
     this._cols = Math.ceil(CANVAS_W / this._cW);
     this._rows = Math.ceil(CANVAS_H / this._cH);
     this._grid = null; // Uint8Array: 1=letra, 0=fondo
@@ -392,7 +392,7 @@ class PixelExplosion extends BaseAnimation {
     super(p, state);
     this.seed = Math.random() * 99999;
     this._frame = 0;
-    this._cellSz = state.posterSlide === 8 ? 7 : 10;
+    this._cellSz = state.posterSlide === 8 ? 5 : 10;
     this._gap = 1;
     this._cols = Math.ceil(CANVAS_W / this._cellSz);
     this._rows = Math.ceil(CANVAS_H / this._cellSz);

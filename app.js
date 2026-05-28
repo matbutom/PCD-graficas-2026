@@ -328,7 +328,7 @@ const state = {
 
   slide8: {
     splitConvocatoria: false,
-    finalizaSize: 172,
+    finalizaSize: 136,
     convocatoriaSize: 125,
     abiertaSize: 140,
     pcdSize: 140,
@@ -814,8 +814,8 @@ function getSlide8Lines(ctx, font) {
   const pcdSize = s8.pcdSize ?? 140;
   const convocatoriaLines = s8.splitConvocatoria
     ? [
-        { text: "CONVO", size: convocatoriaSize, weight: 900, animated: true },
-        { text: "CATORIA", size: convocatoriaSize, weight: 900, animated: true },
+        { text: "convo", size: convocatoriaSize, weight: 900, animated: true },
+        { text: "catoria", size: convocatoriaSize, weight: 900, animated: true },
       ]
     : [
         {
@@ -826,10 +826,10 @@ function getSlide8Lines(ctx, font) {
         },
       ];
   const lines = [
-    { text: "Finaliza la", size: finalizaSize, weight: 400 },
     ...convocatoriaLines,
-    { text: "ABIERTA", size: abiertaSize, weight: 900, animated: true },
-    { text: "PCD-2026", size: pcdSize, weight: 400 },
+    { text: "CERRADA", size: abiertaSize, weight: 900, animated: true },
+    { text: "Nos vemos en", size: finalizaSize, weight: 400 },
+    { text: "PCD-2026!", size: pcdSize, weight: 400 },
   ];
   const availW = CANVAS_W * 0.88;
 
