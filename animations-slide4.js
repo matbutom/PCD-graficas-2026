@@ -47,8 +47,11 @@ class GlitchOverload extends BaseAnimation {
 
     // --- NUEVA LÓGICA INTEGRADA ---
     const isSlide7 = this.state.posterSlide === 7;
+    const isSlide9 = this.state.posterSlide === 9;
     const wordsToSample = isSlide7
       ? [this.state.slide7.fechaNueva]
+      : isSlide9
+        ? []
       : SLIDE4_TITLE;
 
     const [fR, fG, fB] = this.getFg();
@@ -327,7 +330,8 @@ class GlitchOverload extends BaseAnimation {
     const mono =
       this.state.posterSlide === 5 ||
       this.state.posterSlide === 7 ||
-      this.state.posterSlide === 8;
+      this.state.posterSlide === 8 ||
+      this.state.posterSlide === 9;
 
     // CAMBIO CLAVE: Permitimos dibujar si NO es la slide 7 O si se fuerza desde el overlay (forceProtagonist)
     if (this.state.posterSlide !== 7 || this.forceProtagonist) {
@@ -362,7 +366,7 @@ class GlitchOverload extends BaseAnimation {
     // Dibujamos logos solo si no es la Slide 7 para no ensuciar el diseño de bloque
     if (
       typeof drawSlide4Logos === "function" &&
-      ![7, 8].includes(this.state.posterSlide)
+      ![7, 8, 9].includes(this.state.posterSlide)
     )
       drawSlide4Logos(p);
   }
@@ -392,7 +396,7 @@ class PixelExplosion extends BaseAnimation {
     super(p, state);
     this.seed = Math.random() * 99999;
     this._frame = 0;
-    this._cellSz = state.posterSlide === 8 ? 5 : 10;
+    this._cellSz = state.posterSlide === 8 ? 5 : state.posterSlide === 9 ? 8 : 10;
     this._gap = 1;
     this._cols = Math.ceil(CANVAS_W / this._cellSz);
     this._rows = Math.ceil(CANVAS_H / this._cellSz);
@@ -444,7 +448,8 @@ class PixelExplosion extends BaseAnimation {
     off.drawingContext.textAlign = "left";
 
     // 1ª pasada: cada palabra escala al ancho del canvas (sin cap de altura)
-    const sizes = SLIDE4_TITLE.map((word) => {
+    const wordsToSample = this.state.posterSlide === 9 ? [] : SLIDE4_TITLE;
+    const sizes = wordsToSample.map((word) => {
       let sz = 40;
       off.drawingContext.font = `900 ${sz}px ${_font}`;
       while (off.drawingContext.measureText(word).width < availW) {
@@ -462,12 +467,12 @@ class PixelExplosion extends BaseAnimation {
     const logoRes = bufH * 0.13;
     const textAreaH = bufH - logoRes;
     const totalH = sizes.reduce((acc, sz) => acc + Math.round(sz * leading), 0);
-    const commIdx = SLIDE4_TITLE.indexOf("COMM");
+    const commIdx = wordsToSample.indexOf("COMM");
     let y = Math.max(0, Math.floor((textAreaH - totalH) / 2));
-    for (let i = 0; i < SLIDE4_TITLE.length; i++) {
+    for (let i = 0; i < wordsToSample.length; i++) {
       const xOff = i === commIdx ? -bufW * 0.01 : 0;
       off.drawingContext.font = `900 ${sizes[i]}px ${_font}`;
-      off.drawingContext.fillText(SLIDE4_TITLE[i], leftX + xOff, y);
+      off.drawingContext.fillText(wordsToSample[i], leftX + xOff, y);
       y += Math.round(sizes[i] * leading);
     }
     off.loadPixels();
@@ -580,7 +585,7 @@ class PixelExplosion extends BaseAnimation {
 
     if (
       typeof drawSlide4Logos === "function" &&
-      ![7, 8].includes(this.state.posterSlide)
+      ![7, 8, 9].includes(this.state.posterSlide)
     )
       drawSlide4Logos(p);
   }
@@ -1544,11 +1549,690 @@ class DeadlineFlipPixel extends BaseAnimation {
 }
 
 /* =====================================================
+   5. PIXEL DRIFT
+   Campo de píxeles que deriva con ruido suave y parpadeos.
+   Diseñado como fondo puro para el slide 9.
+   ===================================================== */
+class PixelDrift extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = 12;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+    this._init();
+  }
+
+  _init() {
+    this._frame = 0;
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.012 * speed;
+
+    ctx.save();
+    for (let r = 0; r < this._rows; r++) {
+      for (let c = 0; c < this._cols; c++) {
+        const n = p.noise(c * 0.095 + t, r * 0.095 - t, this.seed);
+        const wave = Math.sin((c * 0.28 + r * 0.17) + t * 5);
+        const active = n + wave * 0.12 > 0.56;
+        if (!active) continue;
+
+        const pulse = 0.18 + 0.54 * Math.max(0, n - 0.45);
+        const dx = Math.round(Math.sin(r * 0.21 + t * 7) * 2);
+        const dy = Math.round(Math.cos(c * 0.19 + t * 6) * 2);
+        const inset = n > 0.72 ? 1 : 3;
+        ctx.fillStyle = `rgba(${fR},${fG},${fB},${pulse.toFixed(2)})`;
+        ctx.fillRect(
+          c * sz + inset + dx,
+          r * sz + inset + dy,
+          sz - inset * 2,
+          sz - inset * 2,
+        );
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+    this._init();
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   6. SCANLINE PIXELS
+   Barridos horizontales de bloques pixelados con cortes glitch.
+   Fondo puro para slide 9 y compatible con el selector full-canvas.
+   ===================================================== */
+class ScanlinePixels extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = 9;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    this._hits = new Uint8Array(this._cols * this._rows);
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+    this._init();
+  }
+
+  _init() {
+    this._hits.fill(0);
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+    const p = this.p;
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const scanY = Math.floor(
+      ((this._frame * speed * 0.8) % (this._rows + 24)) - 12,
+    );
+
+    for (let i = 0; i < this._hits.length; i++) {
+      if (this._hits[i] > 0) this._hits[i]--;
+    }
+
+    for (let band = -2; band <= 2; band++) {
+      const r = scanY + band;
+      if (r < 0 || r >= this._rows) continue;
+      for (let c = 0; c < this._cols; c++) {
+        const n = p.noise(c * 0.08, r * 0.22, this.seed + this._frame * 0.015);
+        if (n > 0.45 || p.random() < 0.025) {
+          this._hits[r * this._cols + c] = Math.floor(p.random(10, 32));
+        }
+      }
+    }
+
+    if (p.random() < 0.08) {
+      const r = Math.floor(p.random(this._rows));
+      const start = Math.floor(p.random(this._cols));
+      const len = Math.floor(p.random(8, 34));
+      for (let c = start; c < Math.min(this._cols, start + len); c++) {
+        this._hits[r * this._cols + c] = Math.floor(p.random(8, 24));
+      }
+    }
+  }
+
+  render() {
+    const ctx = this.p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+
+    ctx.save();
+    for (let r = 0; r < this._rows; r++) {
+      for (let c = 0; c < this._cols; c++) {
+        const life = this._hits[r * this._cols + c];
+        if (!life) continue;
+        const alpha = Math.min(0.8, 0.08 + life / 34);
+        const w = life > 18 ? sz * 2 : sz - 1;
+        ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+        ctx.fillRect(c * sz, r * sz + 1, w, sz - 2);
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+    this._init();
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   7. PIXEL PULSE GRID
+   Retícula de cuadrados que respira en ondas y ruido.
+   ===================================================== */
+class PixelPulseGrid extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = 18;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.018 * speed;
+    const cx = this._cols * 0.5;
+    const cy = this._rows * 0.5;
+
+    ctx.save();
+    for (let r = 0; r < this._rows; r++) {
+      for (let c = 0; c < this._cols; c++) {
+        const d = Math.hypot(c - cx, r - cy);
+        const n = p.noise(c * 0.16, r * 0.16, this.seed + t * 0.45);
+        const wave = Math.sin(d * 0.72 - t * 7.5);
+        const level = n * 0.62 + (wave + 1) * 0.22;
+        if (level < 0.53) continue;
+
+        const alpha = Math.min(0.34, 0.04 + level * 0.24);
+        const inset = Math.max(2, Math.round((1 - level) * 10));
+        ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+        ctx.fillRect(c * sz + inset, r * sz + inset, sz - inset * 2, sz - inset * 2);
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   8. BITSTREAM PIXELS
+   Columnas de píxeles que caen con colas cortas y cortes.
+   ===================================================== */
+class BitstreamPixels extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = 11;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    this._heads = [];
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+    this._init();
+  }
+
+  _init() {
+    const p = this.p;
+    this._heads = Array.from({ length: this._cols }, () => ({
+      y: p.random(-this._rows, this._rows),
+      speed: p.random(0.35, 1.55),
+      len: Math.floor(p.random(5, 18)),
+      phase: p.random(1000),
+    }));
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    for (const h of this._heads) {
+      h.y += h.speed * speed * 0.34;
+      if (h.y - h.len > this._rows + 2) {
+        h.y = -Math.random() * this._rows * 0.35;
+        h.speed = this.p.random(0.35, 1.55);
+        h.len = Math.floor(this.p.random(5, 18));
+      }
+    }
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const t = this._frame * 0.05;
+
+    ctx.save();
+    for (let c = 0; c < this._cols; c++) {
+      const h = this._heads[c];
+      const skip = p.noise(c * 0.22, h.phase + t) < 0.18;
+      if (skip) continue;
+
+      for (let k = 0; k < h.len; k++) {
+        const r = Math.floor(h.y - k);
+        if (r < 0 || r >= this._rows) continue;
+        if (p.noise(c * 0.35, r * 0.35, this.seed + t) < 0.25) continue;
+
+        const alpha = Math.max(0, 0.72 - k / h.len);
+        const width = k === 0 ? sz + 2 : sz - 2;
+        ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+        ctx.fillRect(c * sz, r * sz + 1, width, sz - 2);
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+    this._init();
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   9. PIXEL CLOUDS
+   Manchas de píxeles suaves que se abren y cierran.
+   ===================================================== */
+class PixelClouds extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = 14;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.01 * speed;
+
+    ctx.save();
+    for (let r = 0; r < this._rows; r++) {
+      for (let c = 0; c < this._cols; c++) {
+        const n1 = p.noise(c * 0.075 + t, r * 0.075, this.seed);
+        const n2 = p.noise(c * 0.18 - t * 1.3, r * 0.18 + t, this.seed + 300);
+        const level = n1 * 0.74 + n2 * 0.26;
+        if (level < 0.5) continue;
+
+        const alpha = Math.min(0.62, (level - 0.45) * 1.2);
+        const jitterX = Math.round((n2 - 0.5) * 5);
+        const jitterY = Math.round((n1 - 0.5) * 5);
+        const inset = level > 0.68 ? 2 : 4;
+        ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+        ctx.fillRect(
+          c * sz + inset + jitterX,
+          r * sz + inset + jitterY,
+          sz - inset * 2,
+          sz - inset * 2,
+        );
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   10. PIXEL ORBIT RINGS
+   Anillos de píxeles que orbitan desde el centro con ruido.
+   ===================================================== */
+class PixelOrbitRings extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = 12;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.018 * speed;
+    const cx = this._cols * 0.5;
+    const cy = this._rows * 0.5;
+
+    ctx.save();
+    for (let r = 0; r < this._rows; r++) {
+      for (let c = 0; c < this._cols; c++) {
+        const dx = c - cx;
+        const dy = r - cy;
+        const dist = Math.hypot(dx, dy);
+        const ang = Math.atan2(dy, dx);
+        const ring = Math.sin(dist * 0.92 - t * 7 + Math.sin(ang * 5 + t) * 0.8);
+        const n = p.noise(c * 0.12, r * 0.12, this.seed + t * 0.5);
+        const level = ring * 0.5 + n * 0.58;
+        if (level < 0.58) continue;
+
+        const alpha = Math.min(0.58, 0.08 + level * 0.44);
+        const inset = level > 0.78 ? 2 : 4;
+        ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+        ctx.fillRect(c * sz + inset, r * sz + inset, sz - inset * 2, sz - inset * 2);
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   11. DIAGONAL PIXEL WAVES
+   Bandas diagonales pixeladas que cruzan el canvas.
+   ===================================================== */
+class DiagonalPixelWaves extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = 10;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.022 * speed;
+
+    ctx.save();
+    for (let r = 0; r < this._rows; r++) {
+      for (let c = 0; c < this._cols; c++) {
+        const waveA = Math.sin((c + r) * 0.23 - t * 8);
+        const waveB = Math.sin((c - r) * 0.17 + t * 5.5);
+        const n = p.noise(c * 0.11 + t, r * 0.11 - t, this.seed);
+        const level = waveA * 0.33 + waveB * 0.22 + n * 0.6;
+        if (level < 0.52) continue;
+
+        const alpha = Math.min(0.52, 0.06 + level * 0.38);
+        const h = level > 0.72 ? sz - 1 : Math.max(3, Math.round(sz * 0.45));
+        ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+        ctx.fillRect(c * sz + 1, r * sz + Math.floor((sz - h) / 2), sz - 2, h);
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   12. MOSAIC PIXEL SHIFT
+   Bloques grandes que se desplazan y mutan por ventanas.
+   ===================================================== */
+class MosaicPixelShift extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = 16;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    this._tiles = [];
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+    this._init();
+  }
+
+  _init() {
+    const p = this.p;
+    this._tiles = [];
+    for (let i = 0; i < 42; i++) {
+      this._tiles.push({
+        c: Math.floor(p.random(this._cols)),
+        r: Math.floor(p.random(this._rows)),
+        w: Math.floor(p.random(3, 12)),
+        h: Math.floor(p.random(2, 9)),
+        phase: p.random(1000),
+      });
+    }
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+    const p = this.p;
+    if (this._frame % 18 === 0) {
+      const tile = this._tiles[Math.floor(p.random(this._tiles.length))];
+      tile.c = Math.floor(p.random(this._cols));
+      tile.r = Math.floor(p.random(this._rows));
+      tile.w = Math.floor(p.random(3, 12));
+      tile.h = Math.floor(p.random(2, 9));
+    }
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.015 * speed;
+
+    ctx.save();
+    for (const tile of this._tiles) {
+      const flicker = p.noise(tile.phase, t * 2.4);
+      if (flicker < 0.2) continue;
+
+      const dx = Math.round(Math.sin(tile.phase + t * 5) * 2);
+      const dy = Math.round(Math.cos(tile.phase * 0.7 + t * 4) * 2);
+      const alpha = Math.min(0.48, 0.06 + flicker * 0.36);
+      ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+
+      for (let rr = 0; rr < tile.h; rr++) {
+        for (let cc = 0; cc < tile.w; cc++) {
+          if (p.noise(cc * 0.5, rr * 0.5, tile.phase + t) < 0.28) continue;
+          const x = (tile.c + cc) * sz + 2 + dx;
+          const y = (tile.r + rr) * sz + 2 + dy;
+          if (x < 0 || y < 0 || x > CANVAS_W || y > CANVAS_H) continue;
+          ctx.fillRect(x, y, sz - 4, sz - 4);
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+    this._init();
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   13. PIXEL SPARK FIELD
+   Puntos pixelados que aparecen, tiemblan y se apagan.
+   ===================================================== */
+class PixelSparkField extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = 8;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    this._sparks = [];
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+    this._init();
+  }
+
+  _init() {
+    const p = this.p;
+    this._sparks = Array.from({ length: 180 }, () => ({
+      c: Math.floor(p.random(this._cols)),
+      r: Math.floor(p.random(this._rows)),
+      life: Math.floor(p.random(8, 46)),
+      maxLife: Math.floor(p.random(28, 62)),
+      phase: p.random(1000),
+    }));
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+    const p = this.p;
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+
+    for (const s of this._sparks) {
+      s.life -= speed * 0.4;
+      if (s.life <= 0) {
+        s.c = Math.floor(p.random(this._cols));
+        s.r = Math.floor(p.random(this._rows));
+        s.maxLife = Math.floor(p.random(28, 62));
+        s.life = s.maxLife;
+        s.phase = p.random(1000);
+      }
+    }
+  }
+
+  render() {
+    const ctx = this.p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const t = this._frame * 0.08;
+
+    ctx.save();
+    for (const s of this._sparks) {
+      const age = s.life / s.maxLife;
+      const pulse = Math.sin(s.phase + t) * 0.5 + 0.5;
+      const alpha = Math.min(0.66, Math.max(0, age * (0.22 + pulse * 0.54)));
+      const jitterX = Math.round(Math.sin(s.phase + t * 1.7) * 3);
+      const jitterY = Math.round(Math.cos(s.phase * 0.8 + t * 1.3) * 3);
+      const scale = pulse > 0.72 ? 2 : 1;
+      ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+      ctx.fillRect(s.c * sz + jitterX, s.r * sz + jitterY, sz * scale, sz * scale);
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+    this._init();
+  }
+  setParams() {}
+}
+
+/* =====================================================
    REGISTRO DE ANIMACIONES SLIDE 4
    ===================================================== */
 const ANIMATIONS_SLIDE4 = {
   "glitch-overload": GlitchOverload,
   "pixel-explosion": PixelExplosion,
+  "pixel-drift": PixelDrift,
+  "scanline-pixels": ScanlinePixels,
+  "pixel-pulse-grid": PixelPulseGrid,
+  "bitstream-pixels": BitstreamPixels,
+  "pixel-clouds": PixelClouds,
+  "pixel-orbit-rings": PixelOrbitRings,
+  "diagonal-pixel-waves": DiagonalPixelWaves,
+  "mosaic-pixel-shift": MosaicPixelShift,
+  "pixel-spark-field": PixelSparkField,
 };
 
 /* =====================================================
@@ -1557,4 +2241,13 @@ const ANIMATIONS_SLIDE4 = {
 const ANIMATIONS_SLIDE7 = {
   "glitch-overload": GlitchOverload, // Cambiado para usar el Hero Visual
   "pixel-explosion": PixelExplosion, // Cambiado para usar el Hero Visual
+  "pixel-drift": PixelDrift,
+  "scanline-pixels": ScanlinePixels,
+  "pixel-pulse-grid": PixelPulseGrid,
+  "bitstream-pixels": BitstreamPixels,
+  "pixel-clouds": PixelClouds,
+  "pixel-orbit-rings": PixelOrbitRings,
+  "diagonal-pixel-waves": DiagonalPixelWaves,
+  "mosaic-pixel-shift": MosaicPixelShift,
+  "pixel-spark-field": PixelSparkField,
 };

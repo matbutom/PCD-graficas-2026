@@ -138,6 +138,15 @@ const ANIM_OPTIONS_POSTER = [
 const ANIM_OPTIONS_SLIDE4 = [
   { value: "glitch-overload", label: "Glitch Overload" },
   { value: "pixel-explosion", label: "Pixel Explosion" },
+  { value: "pixel-drift", label: "Pixel Drift" },
+  { value: "scanline-pixels", label: "Scanline Pixels" },
+  { value: "pixel-pulse-grid", label: "Pixel Pulse Grid" },
+  { value: "bitstream-pixels", label: "Bitstream Pixels" },
+  { value: "pixel-clouds", label: "Pixel Clouds" },
+  { value: "pixel-orbit-rings", label: "Pixel Orbit Rings" },
+  { value: "diagonal-pixel-waves", label: "Diagonal Pixel Waves" },
+  { value: "mosaic-pixel-shift", label: "Mosaic Pixel Shift" },
+  { value: "pixel-spark-field", label: "Pixel Spark Field" },
 ];
 
 const PROJECT_CATEGORIES = [
@@ -379,7 +388,7 @@ const sketch = (p) => {
     const [bgR, bgG, bgB] = hexRgb(state.preset.bg);
     p.background(bgR, bgG, bgB);
 
-    if ([4, 5].includes(state.posterSlide)) {
+    if ([4, 5, 9].includes(state.posterSlide)) {
       if (!slide4Animation) initSlide4Animation();
       if (slide4Animation) {
         p.push();
@@ -408,6 +417,8 @@ const sketch = (p) => {
       ? (slide4Animation?.getPosterAlpha?.() ?? 0)
       : [5, 6, 7, 8].includes(state.posterSlide)
         ? 1
+        : state.posterSlide === 9
+          ? 0
         : (currentAnimation?.getPosterAlpha?.() ?? 1);
     if (posterAlpha > 0.004) {
       p.drawingContext.globalAlpha = posterAlpha;
@@ -449,7 +460,7 @@ const sketch = (p) => {
 };
 
 function dispatchMouse(p, type) {
-  const anim = [4, 5].includes(state.posterSlide)
+  const anim = [4, 5, 9].includes(state.posterSlide)
     ? slide4Animation
     : currentAnimation;
   if (!anim) return;
@@ -468,7 +479,7 @@ function initAnimation() {
 
 function initSlide4Animation() {
   if (!p5Instance) return;
-  if ([7, 8].includes(state.posterSlide)) {
+  if ([7, 8, 9].includes(state.posterSlide)) {
     if (typeof ANIMATIONS_SLIDE7 === "undefined") return;
     const AnimClass = ANIMATIONS_SLIDE7[state.anim.slide7Anim];
     if (!AnimClass) return;
@@ -763,7 +774,7 @@ function drawLogos(p) {
    RENDER EDITORIAL
    ===================================================== */
 function drawEditorialContent(p) {
-  if (![4, 5, 6, 7, 8].includes(state.posterSlide) && state.grid.show)
+  if (![4, 5, 6, 7, 8, 9].includes(state.posterSlide) && state.grid.show)
     drawGrid(p);
   if (state.posterSlide === 0) {
     drawSlide0(p);
@@ -783,6 +794,8 @@ function drawEditorialContent(p) {
     drawSlide7(p);
   } else if (state.posterSlide === 8) {
     drawSlide8(p);
+  } else if (state.posterSlide === 9) {
+    drawSlide9(p);
   }
   if (state.showGuides) drawGuides(p);
 }
@@ -1944,6 +1957,12 @@ function drawSlide8(p) {
   }
 }
 
+/* =====================================================
+   SLIDE 9 — FONDO PIXEL
+   ===================================================== */
+
+function drawSlide9() {}
+
 /* Función auxiliar para dibujar texto con kerning (espaciado entre letras) */
 function drawBlockedTextWithKerning(
   ctx,
@@ -2858,12 +2877,12 @@ function bindControls() {
     // Determinar el modo de animación (Hero Visual vs Poster Estándar)
     const prevMode = [4, 5].includes(prev)
       ? "slide45"
-      : [7, 8].includes(prev)
+      : [7, 8, 9].includes(prev)
         ? "slide7"
         : "poster";
     const curMode = [4, 5].includes(state.posterSlide)
       ? "slide45"
-      : [7, 8].includes(state.posterSlide)
+      : [7, 8, 9].includes(state.posterSlide)
         ? "slide7"
         : "poster";
 
@@ -2871,7 +2890,7 @@ function bindControls() {
     if (prevMode !== curMode) rebuildAnimSelect(curMode);
 
     // Gestionar la instancia de animación de capa superior (Slide 4/5/7)
-    if ([4, 5, 7, 8].includes(state.posterSlide)) {
+    if ([4, 5, 7, 8, 9].includes(state.posterSlide)) {
       if (!slide4Animation || prevMode !== curMode || prev !== state.posterSlide)
         initSlide4Animation();
     } else {
@@ -3136,7 +3155,7 @@ function bindControls() {
       if (pixelRow)
         pixelRow.style.display =
           e.target.value === "pixel-explosion" ? "" : "none";
-    } else if ([7, 8].includes(state.posterSlide)) {
+    } else if ([7, 8, 9].includes(state.posterSlide)) {
       state.anim.slide7Anim = e.target.value;
       initSlide4Animation();
       if (pixelRow)
@@ -3154,7 +3173,7 @@ function bindControls() {
   });
   onChange("anim-font", (e) => {
     state.anim.font = e.target.value;
-    const anim = [4, 5, 7, 8].includes(state.posterSlide)
+    const anim = [4, 5, 7, 8, 9].includes(state.posterSlide)
       ? slide4Animation
       : currentAnimation;
     if (anim) anim.reset();
@@ -3180,21 +3199,21 @@ function bindControls() {
   );
   slider("anim-text-size", "anim-text-size-val", (v) => {
     state.anim.textSize = Math.round(v);
-    const anim = [4, 5, 7, 8].includes(state.posterSlide)
+    const anim = [4, 5, 7, 8, 9].includes(state.posterSlide)
       ? slide4Animation
       : currentAnimation;
     if (anim) anim.reset();
   });
   onChange("anim-seed", (e) => {
     state.anim.seed = parseInt(e.target.value) || 0;
-    if ([4, 5, 7, 8].includes(state.posterSlide)) initSlide4Animation();
+    if ([4, 5, 7, 8, 9].includes(state.posterSlide)) initSlide4Animation();
     else initAnimation();
   });
   onClick("btn-randomize-anim", () => {
     const seed = Math.floor(Math.random() * 99999);
     state.anim.seed = seed;
     el("anim-seed").value = seed;
-    if ([4, 5, 7, 8].includes(state.posterSlide)) initSlide4Animation();
+    if ([4, 5, 7, 8, 9].includes(state.posterSlide)) initSlide4Animation();
     else initAnimation();
     showToast("Nueva semilla: " + seed);
   });
@@ -3221,7 +3240,7 @@ function bindControls() {
   });
 
   onClick("btn-reset", () => {
-    const anim = [4, 5, 7, 8].includes(state.posterSlide)
+    const anim = [4, 5, 7, 8, 9].includes(state.posterSlide)
       ? slide4Animation
       : currentAnimation;
     if (anim) anim.reset();
@@ -3320,7 +3339,7 @@ function exportVideo() {
   };
 
   // Reiniciar animación desde el principio antes de grabar
-  if ([4, 5, 7, 8].includes(state.posterSlide)) {
+  if ([4, 5, 7, 8, 9].includes(state.posterSlide)) {
     if (slide4Animation) slide4Animation.reset();
   } else {
     if (currentAnimation) currentAnimation.reset();
