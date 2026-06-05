@@ -53,35 +53,16 @@ const COLOR_PRESETS = [
    Verificadas programáticamente — las que fallen se excluyen.
    ===================================================== */
 const WCAG_PALETTES_DEF = [
-  // ── Clásicos ──
-  { name: "Clásico", bg: "#FFFFFF", fg: "#000000" },
-  { name: "Invertido", bg: "#000000", fg: "#FFFFFF" },
-  { name: "Azul Processing", bg: "#0033FF", fg: "#FFFFFF" },
-  { name: "Azul claro", bg: "#E8F0FF", fg: "#0033FF" },
-  { name: "Verde terminal", bg: "#000000", fg: "#00FF66" },
-  { name: "Ámbar CRT", bg: "#1A1A1A", fg: "#FFB000" },
-  { name: "Magenta", bg: "#FFFFFF", fg: "#C2185B" },
-  { name: "Papel", bg: "#F5F0E8", fg: "#1A1A1A" },
-  { name: "Rojo alerta", bg: "#FFE500", fg: "#000000" },
-  { name: "Ciberpunk", bg: "#0A0A14", fg: "#00FFEE" },
-  // ── Fluor ──
-  { name: "Fluor Lima", bg: "#0D0D0D", fg: "#C6FF00" },
-  { name: "Fluor Cyan", bg: "#0D0D0D", fg: "#00FFD4" },
-  { name: "Fluor Rosa", bg: "#0D0D0D", fg: "#FF70E0" },
-  { name: "Fluor Naranja", bg: "#111111", fg: "#FF9500" },
-  { name: "Fluor Violeta", bg: "#0D0D0D", fg: "#C280FF" },
-  { name: "Fluor Rojo", bg: "#0D0D0D", fg: "#FF3C3C" },
-  { name: "Night Neon", bg: "#050510", fg: "#7FFF00" },
-  { name: "Tokyo Night", bg: "#13131F", fg: "#40E0FF" },
-  // ── Pasteles ──
-  { name: "Lavanda", bg: "#EDE0FF", fg: "#2E0080" },
-  { name: "Menta", bg: "#D8FFF0", fg: "#004830" },
-  { name: "Melocotón", bg: "#FFF0E6", fg: "#6B2500" },
-  { name: "Cielo", bg: "#D8F0FF", fg: "#003070" },
-  { name: "Rosa polvo", bg: "#FFE8F5", fg: "#6B0038" },
-  { name: "Crema", bg: "#FFFBE6", fg: "#3D2B00" },
-  { name: "Sage", bg: "#E8F5E9", fg: "#1B3A21" },
-  { name: "Coral", bg: "#FFF0EE", fg: "#7A1A0A" },
+  { name: "Negro", bg: "#000000", fg: "#FFFFFF" },
+  { name: "Amarillo brillo", bg: "#FEF852", fg: "#000000" },
+  { name: "Coral", bg: "#ED745D", fg: "#000000" },
+  { name: "Gris claro", bg: "#E5E5E5", fg: "#000000" },
+  { name: "Azul", bg: "#3D5B92", fg: "#FFFFFF" },
+  { name: "Azul gris", bg: "#9DAFC7", fg: "#000000" },
+  { name: "Rojo", bg: "#C03E2A", fg: "#FFFFFF" },
+  { name: "Verde claro", bg: "#A2D9AA", fg: "#000000" },
+  { name: "Verde oscuro", bg: "#49715B", fg: "#FFFFFF" },
+  { name: "Amarillo tierra", bg: "#E8D24D", fg: "#000000" },
 ];
 // Populated after WCAG functions are defined (see bottom of file)
 let WCAG_PALETTES = [];
@@ -180,7 +161,7 @@ const state = {
     fg: "#000000",
     animColor: "#000000",
     bubbleFg: "#000000", // color de texto dentro de animaciones
-    animOpacity: 80,
+    animOpacity: 35,
     gridOpacity: 35,
   },
 
@@ -231,7 +212,7 @@ const state = {
     current: "letter-physics",
     speed: 2.0,
     fps: 30,
-    opacity: 80,
+    opacity: 35,
     seed: 42,
     textSize: 48,
     fullCanvas: true,
@@ -344,6 +325,13 @@ const state = {
     leading: 0.96,
     boldness: 0.4,
   },
+
+  slide9: {
+    layoutImage: null,
+    layoutUrl: null,
+    layoutName: "",
+    tintAnimations: false,
+  },
 };
 
 // Últimos colores válidos (usados para revertir cambios que rompen WCAG AA)
@@ -392,7 +380,11 @@ const sketch = (p) => {
       if (!slide4Animation) initSlide4Animation();
       if (slide4Animation) {
         p.push();
+        if (state.posterSlide === 9) {
+          p.drawingContext.globalAlpha = state.anim.opacity / 100;
+        }
         slide4Animation.draw();
+        p.drawingContext.globalAlpha = 1;
         p.pop();
       }
     } else {
@@ -418,7 +410,7 @@ const sketch = (p) => {
       : [5, 6, 7, 8].includes(state.posterSlide)
         ? 1
         : state.posterSlide === 9
-          ? 0
+          ? 1
         : (currentAnimation?.getPosterAlpha?.() ?? 1);
     if (posterAlpha > 0.004) {
       p.drawingContext.globalAlpha = posterAlpha;
@@ -1961,7 +1953,13 @@ function drawSlide8(p) {
    SLIDE 9 — FONDO PIXEL
    ===================================================== */
 
-function drawSlide9() {}
+function drawSlide9(p) {
+  const img = state.slide9?.layoutImage;
+  if (!img) return;
+  p.push();
+  p.drawingContext.drawImage(img, 0, 0, CANVAS_W, CANVAS_H);
+  p.pop();
+}
 
 /* Función auxiliar para dibujar texto con kerning (espaciado entre letras) */
 function drawBlockedTextWithKerning(
@@ -2816,6 +2814,59 @@ function updateSlide8TypographyControls() {
   }
 }
 
+function updateSlide9LayoutControls() {
+  const controls = document.getElementById("slide9-layout-controls");
+  if (controls)
+    controls.style.display = state.posterSlide === 9 ? "" : "none";
+
+  const nameEl = document.getElementById("slide9-layout-name");
+  if (nameEl) nameEl.textContent = state.slide9.layoutName || "Sin archivo";
+
+  const paletteBtn = document.getElementById("btn-toggle-slide9-palette-bg");
+  if (paletteBtn) {
+    paletteBtn.classList.toggle("active", state.slide9.tintAnimations);
+    paletteBtn.textContent = state.slide9.tintAnimations
+      ? "Cromática animación activa"
+      : "Cromática animación";
+  }
+}
+
+function clearSlide9Layout() {
+  if (state.slide9.layoutUrl) URL.revokeObjectURL(state.slide9.layoutUrl);
+  state.slide9.layoutImage = null;
+  state.slide9.layoutUrl = null;
+  state.slide9.layoutName = "";
+  const input = document.getElementById("slide9-layout-file");
+  if (input) input.value = "";
+  updateSlide9LayoutControls();
+}
+
+function loadSlide9Layout(file) {
+  if (!file) return;
+  const isPng =
+    file.type === "image/png" || file.name.toLowerCase().endsWith(".png");
+  if (!isPng) {
+    showToast("Sube un archivo PNG", "error");
+    return;
+  }
+
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    if (state.slide9.layoutUrl) URL.revokeObjectURL(state.slide9.layoutUrl);
+    state.slide9.layoutImage = img;
+    state.slide9.layoutUrl = url;
+    state.slide9.layoutName = file.name;
+    updateSlide9LayoutControls();
+    showToast("Layout PNG cargado", "success");
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    showToast("No se pudo cargar el PNG", "error");
+  };
+  img.src = url;
+}
+
 function resetSlide8AnimationMask() {
   if (!slide4Animation) return;
   slide4Animation._slide8GridReady = false;
@@ -2908,6 +2959,7 @@ function bindControls() {
       s7Extra.classList.toggle("hidden", state.posterSlide !== 7);
     }
     updateSlide8TypographyControls();
+    updateSlide9LayoutControls();
   });
 
   onCheck("extra-logos-toggle", (e) => {
@@ -2921,6 +2973,27 @@ function bindControls() {
   onClick("btn-randomize-banner", () => {
     randomizeBannerGrid();
     showToast("Banner aleatorio");
+  });
+
+  onClick("btn-upload-slide9-layout", () => {
+    const input = el("slide9-layout-file");
+    if (input) input.click();
+  });
+  onChange("slide9-layout-file", (e) => {
+    loadSlide9Layout(e.target.files?.[0]);
+  });
+  onClick("btn-clear-slide9-layout", () => {
+    clearSlide9Layout();
+    showToast("Layout PNG quitado");
+  });
+  onClick("btn-toggle-slide9-palette-bg", () => {
+    state.slide9.tintAnimations = !state.slide9.tintAnimations;
+    updateSlide9LayoutControls();
+    showToast(
+      state.slide9.tintAnimations
+        ? "Cromática de paleta activa"
+        : "Cromática de paleta desactivada",
+    );
   });
 
   // ——— Slide 7 ———
@@ -3257,6 +3330,7 @@ function bindControls() {
 
   window.addEventListener("resize", resizeCanvasWrapper);
   updateSlide8TypographyControls();
+  updateSlide9LayoutControls();
 }
 
 /* =====================================================

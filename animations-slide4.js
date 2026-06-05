@@ -67,6 +67,7 @@ class GlitchOverload extends BaseAnimation {
       [p.random(215, 255), 15, p.random(148, 195)],
       [p.random(188, 228), p.random(218, 255), 15],
     ];
+    this._palette = getSlide9PaletteList(this.state, [fR, fG, fB]) || this._palette;
 
     // ── Muestrear el título a resolución de celda ──
     const off = p.createGraphics(bufW, bufH);
@@ -432,6 +433,7 @@ class PixelExplosion extends BaseAnimation {
       [p.random(215, 255), 15, p.random(148, 195)], // magenta
       [p.random(188, 228), p.random(218, 255), 15], // lime
     ];
+    this._palette = getSlide9PaletteList(this.state, [fR, fG, fB]) || this._palette;
 
     // ── Muestrear el texto a resolución de celda ──
     const off = p.createGraphics(bufW, bufH);
@@ -1553,6 +1555,54 @@ class DeadlineFlipPixel extends BaseAnimation {
    Campo de píxeles que deriva con ruido suave y parpadeos.
    Diseñado como fondo puro para el slide 9.
    ===================================================== */
+function getSlide9PaletteSource() {
+  const source =
+    typeof WCAG_PALETTES !== "undefined" && WCAG_PALETTES.length
+      ? WCAG_PALETTES
+      : typeof WCAG_PALETTES_DEF !== "undefined"
+        ? WCAG_PALETTES_DEF
+        : [];
+  return source;
+}
+
+function parsePaletteHex(hex) {
+  const clean = hex.replace("#", "");
+  return [
+    parseInt(clean.slice(0, 2), 16),
+    parseInt(clean.slice(2, 4), 16),
+    parseInt(clean.slice(4, 6), 16),
+  ];
+}
+
+function getSlide9PaletteList(stateRef, fallbackRgb) {
+  if (stateRef.posterSlide !== 9 || !stateRef.slide9?.tintAnimations) {
+    return null;
+  }
+  const source = getSlide9PaletteSource();
+  if (!source.length) return null;
+
+  const tint = 0.78;
+  return source.map((item) =>
+    parsePaletteHex(item.bg).map((v, i) =>
+      Math.round(fallbackRgb[i] * (1 - tint) + v * tint),
+    ),
+  );
+}
+
+function getSlide9PaletteRgb(stateRef, key, fallbackRgb) {
+  const palette = getSlide9PaletteList(stateRef, fallbackRgb);
+  if (!palette) return fallbackRgb;
+  return palette[Math.abs(Math.floor(key)) % palette.length];
+}
+
+function slide9PaletteFillStyle(stateRef, fallbackRgb, key, alpha) {
+  const [r, g, b] =
+    stateRef.posterSlide === 9 && stateRef.slide9?.tintAnimations
+      ? getSlide9PaletteRgb(stateRef, key, fallbackRgb)
+      : fallbackRgb;
+  return `rgba(${r},${g},${b},${alpha.toFixed(2)})`;
+}
+
 class PixelDrift extends BaseAnimation {
   constructor(p, state) {
     super(p, state);
@@ -1595,7 +1645,12 @@ class PixelDrift extends BaseAnimation {
         const dx = Math.round(Math.sin(r * 0.21 + t * 7) * 2);
         const dy = Math.round(Math.cos(c * 0.19 + t * 6) * 2);
         const inset = n > 0.72 ? 1 : 3;
-        ctx.fillStyle = `rgba(${fR},${fG},${fB},${pulse.toFixed(2)})`;
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          c * 11 + r * 17 + n * 100,
+          pulse,
+        );
         ctx.fillRect(
           c * sz + inset + dx,
           r * sz + inset + dy,
@@ -1690,7 +1745,12 @@ class ScanlinePixels extends BaseAnimation {
         if (!life) continue;
         const alpha = Math.min(0.8, 0.08 + life / 34);
         const w = life > 18 ? sz * 2 : sz - 1;
-        ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          c * 13 + r * 19 + life,
+          alpha,
+        );
         ctx.fillRect(c * sz, r * sz + 1, w, sz - 2);
       }
     }
@@ -1753,7 +1813,12 @@ class PixelPulseGrid extends BaseAnimation {
 
         const alpha = Math.min(0.34, 0.04 + level * 0.24);
         const inset = Math.max(2, Math.round((1 - level) * 10));
-        ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          c * 7 + r * 23 + level * 10,
+          alpha,
+        );
         ctx.fillRect(c * sz + inset, r * sz + inset, sz - inset * 2, sz - inset * 2);
       }
     }
@@ -1835,7 +1900,12 @@ class BitstreamPixels extends BaseAnimation {
 
         const alpha = Math.max(0, 0.72 - k / h.len);
         const width = k === 0 ? sz + 2 : sz - 2;
-        ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          c * 17 + r * 5 + k,
+          alpha,
+        );
         ctx.fillRect(c * sz, r * sz + 1, width, sz - 2);
       }
     }
@@ -1897,7 +1967,12 @@ class PixelClouds extends BaseAnimation {
         const jitterX = Math.round((n2 - 0.5) * 5);
         const jitterY = Math.round((n1 - 0.5) * 5);
         const inset = level > 0.68 ? 2 : 4;
-        ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          c * 5 + r * 29 + level * 10,
+          alpha,
+        );
         ctx.fillRect(
           c * sz + inset + jitterX,
           r * sz + inset + jitterY,
@@ -1967,7 +2042,12 @@ class PixelOrbitRings extends BaseAnimation {
 
         const alpha = Math.min(0.58, 0.08 + level * 0.44);
         const inset = level > 0.78 ? 2 : 4;
-        ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          c * 31 + r * 3 + level * 10,
+          alpha,
+        );
         ctx.fillRect(c * sz + inset, r * sz + inset, sz - inset * 2, sz - inset * 2);
       }
     }
@@ -2027,7 +2107,12 @@ class DiagonalPixelWaves extends BaseAnimation {
 
         const alpha = Math.min(0.52, 0.06 + level * 0.38);
         const h = level > 0.72 ? sz - 1 : Math.max(3, Math.round(sz * 0.45));
-        ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          c * 19 + r * 11 + level * 10,
+          alpha,
+        );
         ctx.fillRect(c * sz + 1, r * sz + Math.floor((sz - h) / 2), sz - 2, h);
       }
     }
@@ -2108,7 +2193,12 @@ class MosaicPixelShift extends BaseAnimation {
       const dx = Math.round(Math.sin(tile.phase + t * 5) * 2);
       const dy = Math.round(Math.cos(tile.phase * 0.7 + t * 4) * 2);
       const alpha = Math.min(0.48, 0.06 + flicker * 0.36);
-      ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+      ctx.fillStyle = slide9PaletteFillStyle(
+        this.state,
+        [fR, fG, fB],
+        tile.c * 13 + tile.r * 7 + tile.phase,
+        alpha,
+      );
 
       for (let rr = 0; rr < tile.h; rr++) {
         for (let cc = 0; cc < tile.w; cc++) {
@@ -2198,7 +2288,12 @@ class PixelSparkField extends BaseAnimation {
       const jitterX = Math.round(Math.sin(s.phase + t * 1.7) * 3);
       const jitterY = Math.round(Math.cos(s.phase * 0.8 + t * 1.3) * 3);
       const scale = pulse > 0.72 ? 2 : 1;
-      ctx.fillStyle = `rgba(${fR},${fG},${fB},${alpha.toFixed(2)})`;
+      ctx.fillStyle = slide9PaletteFillStyle(
+        this.state,
+        [fR, fG, fB],
+        s.c * 11 + s.r * 17 + s.phase,
+        alpha,
+      );
       ctx.fillRect(s.c * sz + jitterX, s.r * sz + jitterY, sz * scale, sz * scale);
     }
     ctx.restore();

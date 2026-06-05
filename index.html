@@ -148,6 +148,35 @@
                   Randomizar pixeles
                 </button>
               </div>
+              <div class="sub-group" id="slide9-layout-controls" style="display: none">
+                <div class="sub-label">Layout de texto</div>
+                <input
+                  type="file"
+                  id="slide9-layout-file"
+                  accept="image/png"
+                  class="visually-hidden-file"
+                />
+                <button id="btn-upload-slide9-layout" class="btn-action">
+                  Subir layout PNG
+                </button>
+                <button
+                  id="btn-toggle-slide9-palette-bg"
+                  class="btn-action"
+                  style="margin-top: 6px"
+                >
+                  Cromática animación
+                </button>
+                <button
+                  id="btn-clear-slide9-layout"
+                  class="btn-action"
+                  style="margin-top: 6px"
+                >
+                  Quitar layout
+                </button>
+                <div id="slide9-layout-name" class="file-status">
+                  Sin archivo
+                </div>
+              </div>
               <div class="sub-group" id="slide7-controls" style="display: none">
                 <div class="sub-label">Día anterior</div>
                 <input
@@ -444,14 +473,14 @@
                 <div class="ctrl-row">
                   <label
                     >Opacidad anim
-                    <span class="val" id="anim-opacity-val">80</span>%</label
+                    <span class="val" id="anim-opacity-val">35</span>%</label
                   >
                   <input
                     type="range"
                     id="anim-opacity"
                     min="10"
                     max="100"
-                    value="80"
+                    value="35"
                     class="slider"
                   />
                 </div>
