@@ -128,6 +128,8 @@ const ANIM_OPTIONS_SLIDE4 = [
   { value: "diagonal-pixel-waves", label: "Diagonal Pixel Waves" },
   { value: "mosaic-pixel-shift", label: "Mosaic Pixel Shift" },
   { value: "pixel-spark-field", label: "Pixel Spark Field" },
+  { value: "organic-pixel-flow", label: "Organic Pixel Flow" },
+  { value: "cellular-pixel-bloom", label: "Cellular Pixel Bloom" },
 ];
 
 const PROJECT_CATEGORIES = [
@@ -330,9 +332,186 @@ const state = {
     layoutImage: null,
     layoutUrl: null,
     layoutName: "",
+    layouts: [],
+    activeLayoutIndex: 0,
     tintAnimations: false,
   },
 };
+
+const APP_STATE_STORAGE_KEY = "pcd2026-visualizer-state-v2";
+const SLIDE9_LAYOUT_DB_NAME = "pcd2026-slide9-layouts";
+const SLIDE9_LAYOUT_STORE = "layouts";
+let persistStateTimer = null;
+
+function cloneStateValue(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function mergeState(target, source) {
+  if (!source || typeof source !== "object") return;
+  Object.keys(source).forEach((key) => {
+    if (!(key in target)) return;
+    const sourceValue = source[key];
+    const targetValue = target[key];
+    if (
+      sourceValue &&
+      typeof sourceValue === "object" &&
+      !Array.isArray(sourceValue) &&
+      targetValue &&
+      typeof targetValue === "object" &&
+      !Array.isArray(targetValue)
+    ) {
+      mergeState(targetValue, sourceValue);
+    } else {
+      target[key] = sourceValue;
+    }
+  });
+}
+
+function getPersistableState() {
+  const persisted = cloneStateValue({
+    ...state,
+    slide9: {
+      ...state.slide9,
+      layoutImage: null,
+      layoutUrl: null,
+      layoutName: "",
+      layouts: [],
+    },
+  });
+  persisted.playing = true;
+  return persisted;
+}
+
+function savePersistentState() {
+  try {
+    localStorage.setItem(
+      APP_STATE_STORAGE_KEY,
+      JSON.stringify(getPersistableState()),
+    );
+  } catch (e) {
+    // localStorage can fail in private browsing or quota-limited contexts.
+  }
+}
+
+function schedulePersistentStateSave() {
+  clearTimeout(persistStateTimer);
+  persistStateTimer = setTimeout(savePersistentState, 80);
+}
+
+function restorePersistentState() {
+  try {
+    const raw = localStorage.getItem(APP_STATE_STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    mergeState(state, saved);
+  } catch (e) {
+    localStorage.removeItem(APP_STATE_STORAGE_KEY);
+  }
+}
+
+function setupPersistentStateAutosave() {
+  ["input", "change", "click"].forEach((eventName) => {
+    document.addEventListener(eventName, schedulePersistentStateSave);
+  });
+  window.addEventListener("beforeunload", savePersistentState);
+}
+
+function openSlide9LayoutDb() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error("IndexedDB no disponible"));
+      return;
+    }
+    const req = indexedDB.open(SLIDE9_LAYOUT_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(SLIDE9_LAYOUT_STORE)) {
+        db.createObjectStore(SLIDE9_LAYOUT_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveSlide9LayoutFiles(files) {
+  try {
+    const db = await openSlide9LayoutDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(SLIDE9_LAYOUT_STORE, "readwrite");
+      const store = tx.objectStore(SLIDE9_LAYOUT_STORE);
+      store.clear();
+      Array.from(files || []).forEach((file, index) => {
+        store.put({
+          id: index,
+          index,
+          name: file.name,
+          type: file.type || "image/png",
+          blob: file,
+        });
+      });
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch (e) {
+    // Persisting uploaded files is best-effort; UI state still persists.
+  }
+}
+
+async function clearStoredSlide9LayoutFiles() {
+  try {
+    const db = await openSlide9LayoutDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(SLIDE9_LAYOUT_STORE, "readwrite");
+      tx.objectStore(SLIDE9_LAYOUT_STORE).clear();
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch (e) {}
+}
+
+function imageFromStoredSlide9File(item) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(item.blob);
+    const img = new Image();
+    img.onload = () => resolve({ img, url, name: item.name });
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
+async function restoreSlide9LayoutFiles() {
+  try {
+    const db = await openSlide9LayoutDb();
+    const items = await new Promise((resolve, reject) => {
+      const tx = db.transaction(SLIDE9_LAYOUT_STORE, "readonly");
+      const req = tx.objectStore(SLIDE9_LAYOUT_STORE).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    if (!items.length) return;
+
+    items.sort((a, b) => a.index - b.index);
+    const layouts = (await Promise.all(items.map(imageFromStoredSlide9File)))
+      .filter(Boolean);
+    if (!layouts.length) return;
+    state.slide9.layouts = layouts;
+    state.slide9.activeLayoutIndex = Math.min(
+      state.slide9.activeLayoutIndex || 0,
+      layouts.length - 1,
+    );
+    syncSlide9LegacyLayout();
+  } catch (e) {
+    // If browser storage is unavailable, users can upload the PNGs again.
+  }
+}
 
 // Últimos colores válidos (usados para revertir cambios que rompen WCAG AA)
 let lastValidBg = "#FFFFFF";
@@ -351,6 +530,9 @@ let fadeOpacity = 1;
 let fadingOut = false;
 let fadingIn = false;
 let nextAnimName = null;
+let slide9BackgroundCanvas = null;
+let slide9PreviewFramePending = false;
+let slide9PreviewKey = "";
 
 const sketch = (p) => {
   p.setup = () => {
@@ -1954,11 +2136,75 @@ function drawSlide8(p) {
    ===================================================== */
 
 function drawSlide9(p) {
-  const img = state.slide9?.layoutImage;
+  captureSlide9BackgroundFrame(p);
+  scheduleSlide9PreviewFrame();
+
+  const active = getActiveSlide9Layout();
+  const img = active?.img || active?.image || state.slide9?.layoutImage;
   if (!img) return;
   p.push();
   p.drawingContext.drawImage(img, 0, 0, CANVAS_W, CANVAS_H);
   p.pop();
+}
+
+function getActiveSlide9Layout() {
+  const layouts = state.slide9?.layouts || [];
+  if (!layouts.length) return null;
+  const index = Math.max(
+    0,
+    Math.min(layouts.length - 1, state.slide9.activeLayoutIndex || 0),
+  );
+  return layouts[index] || null;
+}
+
+function captureSlide9BackgroundFrame(p) {
+  if (!slide9BackgroundCanvas) {
+    slide9BackgroundCanvas = document.createElement("canvas");
+    slide9BackgroundCanvas.width = CANVAS_W;
+    slide9BackgroundCanvas.height = CANVAS_H;
+  }
+  const ctx = slide9BackgroundCanvas.getContext("2d");
+  if (ctx) ctx.drawImage(p.canvas, 0, 0, CANVAS_W, CANVAS_H);
+}
+
+function scheduleSlide9PreviewFrame() {
+  if (slide9PreviewFramePending) return;
+  slide9PreviewFramePending = true;
+  requestAnimationFrame(() => {
+    slide9PreviewFramePending = false;
+    renderSlide9PreviewFrames();
+  });
+}
+
+function renderSlide9PreviewFrames() {
+  if (state.posterSlide !== 9 || !slide9BackgroundCanvas) return;
+  const strip = document.getElementById("slide9-preview-strip");
+  if (!strip || strip.classList.contains("hidden")) return;
+  const layouts = state.slide9.layouts || [];
+  strip.querySelectorAll("canvas").forEach((canvas, i) => {
+    const layout = layouts[i];
+    const img = layout?.img || layout?.image;
+    const ctx = canvas.getContext("2d");
+    if (!ctx || !img) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(slide9BackgroundCanvas, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  });
+}
+
+function updateSlide9PreviewActiveState() {
+  const listEl = document.getElementById("slide9-layout-list");
+  if (listEl) {
+    listEl.querySelectorAll(".slide9-layout-thumb").forEach((node, index) => {
+      node.classList.toggle("active", index === state.slide9.activeLayoutIndex);
+    });
+  }
+  const strip = document.getElementById("slide9-preview-strip");
+  if (strip) {
+    strip.querySelectorAll(".slide9-preview-frame").forEach((node, index) => {
+      node.classList.toggle("active", index === state.slide9.activeLayoutIndex);
+    });
+  }
 }
 
 /* Función auxiliar para dibujar texto con kerning (espaciado entre letras) */
@@ -2692,6 +2938,113 @@ function hideContrastError() {
   }
 }
 
+function setControlValue(id, value) {
+  const control = document.getElementById(id);
+  if (control && value !== undefined && value !== null) control.value = value;
+}
+
+function setControlChecked(id, checked) {
+  const control = document.getElementById(id);
+  if (control) control.checked = !!checked;
+}
+
+function setLabelText(id, text) {
+  const label = document.getElementById(id);
+  if (label) label.textContent = text;
+}
+
+function syncControlsFromState() {
+  setControlValue("format-select", state.format);
+  setControlValue("poster-slide-select", String(state.posterSlide));
+  setControlChecked("extra-logos-toggle", state.showExtraLogos);
+  setControlChecked("convocatoria-tag-toggle", state.showConvocatoriaTag);
+
+  setControlValue("poster-bg", state.preset.bg);
+  setControlValue("poster-fg", state.preset.fg);
+  setControlValue("fg-color", state.preset.bubbleFg || state.preset.fg);
+  setControlValue("bubble-bg-color", state.preset.animColor);
+  setControlValue("bg-color", state.preset.bg);
+  setControlValue("anim-opacity", state.anim.opacity);
+  setLabelText("anim-opacity-val", state.anim.opacity);
+  setControlValue("grid-opacity", state.preset.gridOpacity);
+  setLabelText("grid-opacity-val", state.preset.gridOpacity);
+
+  const mode = [4, 5].includes(state.posterSlide)
+    ? "slide45"
+    : [7, 8, 9].includes(state.posterSlide)
+      ? "slide7"
+      : "poster";
+  rebuildAnimSelect(mode);
+  setControlValue(
+    "anim-select",
+    mode === "slide45"
+      ? state.anim.slide4Anim
+      : mode === "slide7"
+        ? state.anim.slide7Anim
+        : state.anim.current,
+  );
+  setControlValue("anim-blend", state.anim.blendMode);
+  setControlValue("anim-speed", state.anim.speed);
+  setLabelText("anim-speed-val", Number(state.anim.speed).toFixed(1));
+  setControlValue("anim-text-size", state.anim.textSize);
+  setLabelText("anim-text-size-val", state.anim.textSize);
+  setControlValue("slide4-leading", state.anim.slide4Leading);
+  setLabelText("slide4-leading-val", state.anim.slide4Leading);
+  setControlValue("slide4-pixel-mode", state.anim.slide4PixelMode);
+  setControlValue("anim-seed", state.anim.seed);
+  setControlValue("anim-font", state.anim.font);
+
+  setControlValue("margin-val", state.layout.margin);
+  setLabelText("margin-disp", state.layout.margin);
+  setControlChecked("grid-show", state.grid.show);
+  setControlValue("grid-cols", state.grid.cols);
+  setLabelText("grid-cols-val", state.grid.cols);
+  setControlValue("grid-rows", state.grid.rows);
+  setLabelText("grid-rows-val", state.grid.rows);
+  setControlValue("grid-weight", state.grid.weight);
+  setLabelText("grid-weight-val", Number(state.grid.weight).toFixed(1));
+  setControlChecked("guides-toggle", state.showGuides);
+
+  setControlValue("slide7-fecha-vieja", state.slide7.fechaVieja);
+  setControlValue("slide7-fecha-nueva", state.slide7.fechaNueva);
+  setControlValue("slide7-mes", state.slide7.mes);
+  setControlValue("slide7-hold-old", state.slide7.holdOld);
+  setLabelText("slide7-hold-old-val", state.slide7.holdOld);
+  setControlValue("slide7-flip-dur", state.slide7.flipDur);
+  setLabelText("slide7-flip-dur-val", state.slide7.flipDur);
+
+  setControlValue("slide8-finaliza-size", state.slide8.finalizaSize);
+  setLabelText("slide8-finaliza-size-val", state.slide8.finalizaSize);
+  setControlValue("slide8-convocatoria-size", state.slide8.convocatoriaSize);
+  setLabelText("slide8-convocatoria-size-val", state.slide8.convocatoriaSize);
+  setControlValue("slide8-abierta-size", state.slide8.abiertaSize);
+  setLabelText("slide8-abierta-size-val", state.slide8.abiertaSize);
+  setControlValue("slide8-pcd-size", state.slide8.pcdSize);
+  setLabelText("slide8-pcd-size-val", state.slide8.pcdSize);
+  setControlValue("slide8-leading", state.slide8.leading);
+  setLabelText("slide8-leading-val", state.slide8.leading);
+  setControlValue("slide8-boldness", state.slide8.boldness);
+  setLabelText("slide8-boldness-val", state.slide8.boldness);
+
+  const playBtn = document.getElementById("btn-play-pause");
+  if (playBtn) playBtn.classList.toggle("active", state.playing);
+  const playLabel = document.getElementById("play-label");
+  if (playLabel) playLabel.textContent = state.playing ? "Pause" : "Play";
+  const guidesBtn = document.getElementById("btn-guides");
+  if (guidesBtn) guidesBtn.classList.toggle("active", state.showGuides);
+  const s7EditorialBtn = document.getElementById("btn-toggle-s7-editorial");
+  if (s7EditorialBtn) {
+    s7EditorialBtn.textContent = state.slide7.hideEditorial
+      ? "Mostrar Textos"
+      : "Ocultar Textos";
+    s7EditorialBtn.classList.toggle("active", state.slide7.hideEditorial);
+  }
+
+  updateContrastUI();
+  updateSlide8TypographyControls();
+  updateSlide9LayoutControls();
+}
+
 /* =====================================================
    PRESETS DE COLOR
    ===================================================== */
@@ -2819,52 +3172,223 @@ function updateSlide9LayoutControls() {
   if (controls)
     controls.style.display = state.posterSlide === 9 ? "" : "none";
 
+  syncSlide9LegacyLayout();
+  const layouts = getSlide9Layouts();
+  const count = layouts.length;
+  const previewKey = layouts.map((item) => item.url || item.name).join("|");
   const nameEl = document.getElementById("slide9-layout-name");
-  if (nameEl) nameEl.textContent = state.slide9.layoutName || "Sin archivo";
+  if (nameEl) {
+    nameEl.textContent =
+      count === 0
+        ? "Sin archivo"
+        : count === 1
+          ? layouts[0].name
+          : `${count} layouts PNG cargados`;
+  }
+
+  const listEl = document.getElementById("slide9-layout-list");
+  if (listEl && previewKey !== slide9PreviewKey) {
+    listEl.innerHTML = "";
+    layouts.forEach((item, index) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "slide9-layout-thumb";
+      btn.classList.toggle("active", index === state.slide9.activeLayoutIndex);
+      btn.title = item.name;
+      btn.addEventListener("click", () => {
+        setActiveSlide9Layout(index);
+        updateSlide9LayoutControls();
+      });
+
+      const img = document.createElement("img");
+      img.src = item.url;
+      img.alt = item.name;
+      btn.appendChild(img);
+
+      const label = document.createElement("span");
+      label.textContent = `${index + 1}`;
+      btn.appendChild(label);
+      listEl.appendChild(btn);
+    });
+  }
+
+  const strip = document.getElementById("slide9-preview-strip");
+  if (strip) {
+    strip.classList.toggle("hidden", state.posterSlide !== 9 || count <= 1);
+    if (previewKey !== slide9PreviewKey) {
+      strip.innerHTML = "";
+      layouts.forEach((item, index) => {
+        const frame = document.createElement("button");
+        frame.type = "button";
+        frame.className = "slide9-preview-frame";
+        frame.classList.toggle(
+          "active",
+          index === state.slide9.activeLayoutIndex,
+        );
+        frame.title = item.name;
+        frame.addEventListener("click", () => {
+          setActiveSlide9Layout(index);
+          updateSlide9LayoutControls();
+        });
+
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(CANVAS_W / 4);
+        canvas.height = Math.round(CANVAS_H / 4);
+        frame.appendChild(canvas);
+
+        const label = document.createElement("span");
+        label.textContent = `${index + 1}`;
+        frame.appendChild(label);
+        strip.appendChild(frame);
+      });
+    }
+    renderSlide9PreviewFrames();
+  }
+  slide9PreviewKey = previewKey;
+  updateSlide9PreviewActiveState();
 
   const paletteBtn = document.getElementById("btn-toggle-slide9-palette-bg");
   if (paletteBtn) {
     paletteBtn.classList.toggle("active", state.slide9.tintAnimations);
     paletteBtn.textContent = state.slide9.tintAnimations
-      ? "Cromática animación activa"
-      : "Cromática animación";
+      ? "Colores de paleta activos"
+      : "Usar colores de paleta";
   }
+
+  updateSlide9ExportLabels();
 }
 
 function clearSlide9Layout() {
-  if (state.slide9.layoutUrl) URL.revokeObjectURL(state.slide9.layoutUrl);
+  getSlide9Layouts().forEach((item) => {
+    if (item.url) URL.revokeObjectURL(item.url);
+  });
+  clearStoredSlide9LayoutFiles();
   state.slide9.layoutImage = null;
   state.slide9.layoutUrl = null;
   state.slide9.layoutName = "";
+  state.slide9.layouts = [];
+  state.slide9.activeLayoutIndex = 0;
+  slide9PreviewKey = "";
+  const listEl = document.getElementById("slide9-layout-list");
+  if (listEl) listEl.innerHTML = "";
+  const strip = document.getElementById("slide9-preview-strip");
+  if (strip) {
+    strip.innerHTML = "";
+    strip.classList.add("hidden");
+  }
   const input = document.getElementById("slide9-layout-file");
   if (input) input.value = "";
   updateSlide9LayoutControls();
 }
 
-function loadSlide9Layout(file) {
-  if (!file) return;
-  const isPng =
-    file.type === "image/png" || file.name.toLowerCase().endsWith(".png");
-  if (!isPng) {
-    showToast("Sube un archivo PNG", "error");
+function getSlide9Layouts() {
+  const layouts = Array.isArray(state.slide9.layouts)
+    ? state.slide9.layouts
+    : [];
+  if (layouts.length) return layouts;
+  if (state.slide9.layoutImage) {
+    return [
+      {
+        img: state.slide9.layoutImage,
+        url: state.slide9.layoutUrl,
+        name: state.slide9.layoutName || "layout.png",
+      },
+    ];
+  }
+  return [];
+}
+
+function syncSlide9LegacyLayout() {
+  const layouts = getSlide9Layouts();
+  const index = Math.min(
+    Math.max(0, state.slide9.activeLayoutIndex || 0),
+    Math.max(0, layouts.length - 1),
+  );
+  state.slide9.activeLayoutIndex = index;
+  const active = layouts[index];
+  state.slide9.layoutImage = active?.img || active?.image || null;
+  state.slide9.layoutUrl = active?.url || null;
+  state.slide9.layoutName = active?.name || "";
+}
+
+function setActiveSlide9Layout(index) {
+  const layouts = getSlide9Layouts();
+  if (!layouts.length) return;
+  state.slide9.activeLayoutIndex = Math.min(
+    Math.max(0, index),
+    layouts.length - 1,
+  );
+  syncSlide9LegacyLayout();
+}
+
+function updateSlide9ExportLabels() {
+  const count =
+    state.posterSlide === 9 && getSlide9Layouts().length > 1
+      ? getSlide9Layouts().length
+      : 0;
+  const pngLabel = count ? `PNG — ${count} slides` : "PNG — frame actual";
+  const videoLabel = count ? `Video — ${count} videos` : "Video — 10 segundos";
+  const sidebarPng = document.getElementById("btn-export-png-sidebar");
+  const sidebarVideo = document.getElementById("btn-export-mp4-sidebar");
+  const toolbarPng = document.getElementById("btn-export-png");
+  const toolbarVideo = document.getElementById("btn-export-mp4");
+  if (sidebarPng) sidebarPng.textContent = pngLabel;
+  if (sidebarVideo) sidebarVideo.textContent = videoLabel;
+  if (toolbarPng) toolbarPng.textContent = count ? `PNG x${count}` : "PNG";
+  if (toolbarVideo)
+    toolbarVideo.textContent = count ? `MP4 x${count}` : "MP4 10s";
+}
+
+function loadSlide9Layouts(files) {
+  const inputFiles = Array.from(files || []);
+  if (!inputFiles.length) return;
+  const pngFiles = inputFiles.filter(
+    (file) =>
+      file.type === "image/png" || file.name.toLowerCase().endsWith(".png"),
+  );
+  if (!pngFiles.length) {
+    showToast("Sube archivos PNG", "error");
     return;
   }
+  if (pngFiles.length !== inputFiles.length) {
+    showToast("Se omitieron archivos que no eran PNG", "error");
+  }
 
-  const url = URL.createObjectURL(file);
-  const img = new Image();
-  img.onload = () => {
-    if (state.slide9.layoutUrl) URL.revokeObjectURL(state.slide9.layoutUrl);
-    state.slide9.layoutImage = img;
-    state.slide9.layoutUrl = url;
-    state.slide9.layoutName = file.name;
-    updateSlide9LayoutControls();
-    showToast("Layout PNG cargado", "success");
-  };
-  img.onerror = () => {
-    URL.revokeObjectURL(url);
-    showToast("No se pudo cargar el PNG", "error");
-  };
-  img.src = url;
+  Promise.all(
+    pngFiles.map(
+      (file) =>
+        new Promise((resolve, reject) => {
+          const url = URL.createObjectURL(file);
+          const img = new Image();
+          img.onload = () => resolve({ img, url, name: file.name });
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error(file.name));
+          };
+          img.src = url;
+        }),
+    ),
+  )
+    .then((layouts) => {
+      getSlide9Layouts().forEach((item) => {
+        if (item.url) URL.revokeObjectURL(item.url);
+      });
+      state.slide9.layouts = layouts;
+      state.slide9.activeLayoutIndex = 0;
+      syncSlide9LegacyLayout();
+      saveSlide9LayoutFiles(pngFiles);
+      schedulePersistentStateSave();
+      updateSlide9LayoutControls();
+      showToast(
+        layouts.length === 1
+          ? "Layout PNG cargado"
+          : `${layouts.length} layouts PNG cargados`,
+        "success",
+      );
+    })
+    .catch(() => {
+      showToast("No se pudo cargar uno de los PNG", "error");
+    });
 }
 
 function resetSlide8AnimationMask() {
@@ -2980,7 +3504,7 @@ function bindControls() {
     if (input) input.click();
   });
   onChange("slide9-layout-file", (e) => {
-    loadSlide9Layout(e.target.files?.[0]);
+    loadSlide9Layouts(e.target.files);
   });
   onClick("btn-clear-slide9-layout", () => {
     clearSlide9Layout();
@@ -2991,22 +3515,12 @@ function bindControls() {
     updateSlide9LayoutControls();
     showToast(
       state.slide9.tintAnimations
-        ? "Cromática de paleta activa"
-        : "Cromática de paleta desactivada",
+        ? "Colores de paleta activos"
+        : "Colores de paleta desactivados",
     );
   });
 
   // ——— Slide 7 ———
-
-  state.slide7 = {
-    fechaVieja: "21",
-    fechaNueva: "26",
-    mes: "Mayo",
-    holdOld: 1.5,
-    flipDur: 0.8,
-    hideEditorial: false, // <--- Agrega esto
-  };
-
   onInput("slide7-fecha-vieja", (e) => {
     state.slide7.fechaVieja = e.target.value;
     if (slide4Animation) slide4Animation.reset();
@@ -3336,24 +3850,71 @@ function bindControls() {
 /* =====================================================
    EXPORTACIÓN
    ===================================================== */
-function exportPNG() {
+async function waitForCanvasFrame() {
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+function slide9ExportBatch() {
+  if (state.posterSlide !== 9) return [];
+  return getSlide9Layouts();
+}
+
+function exportFileBaseName(name, index) {
+  const base =
+    (name || `slide-${index + 1}`)
+      .replace(/\.[^.]+$/, "")
+      .replace(/[^a-z0-9_-]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || `slide-${index + 1}`;
+  return `pcd2026-slide9-${String(index + 1).padStart(2, "0")}-${base}`;
+}
+
+async function exportPNG() {
   const wasPlay = state.playing;
   state.playing = false;
 
-  setTimeout(() => {
-    const cv = document.querySelector("#canvas-container canvas");
-    if (!cv) {
-      showToast("Canvas no encontrado", "error");
-      state.playing = wasPlay;
-      return;
-    }
-    downloadDataURL(cv.toDataURL("image/png"), "pcd2026.png");
-    showToast(`PNG exportado ${CANVAS_W}×${CANVAS_H}`, "success");
+  const cv = document.querySelector("#canvas-container canvas");
+  if (!cv) {
+    showToast("Canvas no encontrado", "error");
     state.playing = wasPlay;
-  }, 60);
+    return;
+  }
+
+  const layouts = slide9ExportBatch();
+  const activeIndex = state.slide9.activeLayoutIndex || 0;
+
+  if (layouts.length > 1) {
+    showProgress(true, "Exportando PNGs...");
+    for (let i = 0; i < layouts.length; i++) {
+      setActiveSlide9Layout(i);
+      updateSlide9LayoutControls();
+      await waitForCanvasFrame();
+      downloadDataURL(
+        cv.toDataURL("image/png"),
+        `${exportFileBaseName(layouts[i].name, i)}.png`,
+      );
+      updateProgress((i + 1) / layouts.length, `${i + 1} / ${layouts.length}`);
+      await new Promise((resolve) => setTimeout(resolve, 180));
+    }
+    setActiveSlide9Layout(activeIndex);
+    updateSlide9LayoutControls();
+    showProgress(false);
+    showToast(
+      `${layouts.length} PNGs exportados ${CANVAS_W}×${CANVAS_H}`,
+      "success",
+    );
+    state.playing = wasPlay;
+    return;
+  }
+
+  await waitForCanvasFrame();
+  downloadDataURL(cv.toDataURL("image/png"), "pcd2026.png");
+  showToast(`PNG exportado ${CANVAS_W}×${CANVAS_H}`, "success");
+  state.playing = wasPlay;
 }
 
-function exportVideo() {
+async function exportVideo() {
   const cv = document.querySelector("#canvas-container canvas");
   if (!cv) {
     showToast("Canvas no encontrado", "error");
@@ -3364,72 +3925,160 @@ function exportVideo() {
     return;
   }
 
-  const fps = state.anim.fps || 30;
-  const duration = 10000; // 10 segundos fijos
-
-  const mp4Types = [
-    "video/mp4;codecs=avc1",
-    "video/mp4",
-    "video/webm;codecs=vp9",
-    "video/webm",
-  ];
-  const mime =
-    mp4Types.find((t) => {
-      try {
-        return MediaRecorder.isTypeSupported(t);
-      } catch (e) {
-        return false;
-      }
-    }) || "video/webm";
-  const ext = mime.includes("mp4") ? "mp4" : "webm";
-
-  let stream;
-  try {
-    stream = cv.captureStream(fps);
-  } catch (e) {
-    showToast("captureStream no soportado", "error");
-    return;
-  }
-
-  const rec = new MediaRecorder(stream, {
-    mimeType: mime,
-    videoBitsPerSecond: 8_000_000,
-  });
-  const chunks = [];
+  const layouts = slide9ExportBatch();
+  const activeIndex = state.slide9.activeLayoutIndex || 0;
   const wasPlay = state.playing;
   state.playing = true;
 
-  rec.ondataavailable = (e) => {
-    if (e.data.size > 0) chunks.push(e.data);
-  };
-  rec.onstop = () => {
-    downloadURL(
-      URL.createObjectURL(new Blob(chunks, { type: mime })),
-      `pcd2026.${ext}`,
-    );
+  if (layouts.length > 1) {
+    let exported = 0;
+    for (let i = 0; i < layouts.length; i++) {
+      setActiveSlide9Layout(i);
+      updateSlide9LayoutControls();
+      await waitForCanvasFrame();
+      updateProgress(i / layouts.length, `Video ${i + 1} / ${layouts.length}`);
+      const ok = await exportSingleVideo(cv, exportFileBaseName(layouts[i].name, i), {
+        label: `Video ${i + 1} / ${layouts.length}`,
+        keepPlayback: true,
+        showFinalToast: false,
+      });
+      if (!ok) break;
+      exported++;
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    }
+    setActiveSlide9Layout(activeIndex);
+    updateSlide9LayoutControls();
     showProgress(false);
-    showToast(`Video exportado (10s · ${ext.toUpperCase()})`, "success");
+    showToast(
+      exported === layouts.length
+        ? `${layouts.length} videos exportados`
+        : `Exportados ${exported} de ${layouts.length} videos`,
+      exported === layouts.length ? "success" : "error",
+    );
     state.playing = wasPlay;
-  };
-
-  // Reiniciar animación desde el principio antes de grabar
-  if ([4, 5, 7, 8, 9].includes(state.posterSlide)) {
-    if (slide4Animation) slide4Animation.reset();
-  } else {
-    if (currentAnimation) currentAnimation.reset();
+    return;
   }
 
-  showProgress(true, "Grabando...");
-  rec.start();
-  let elapsed = 0;
-  const iv = setInterval(() => {
-    elapsed += 100;
-    updateProgress(elapsed / duration, `${(elapsed / 1000).toFixed(1)}s / 10s`);
-    if (elapsed >= duration) {
-      clearInterval(iv);
-      rec.stop();
+  await exportSingleVideo(cv, "pcd2026", {
+    keepPlayback: true,
+    showFinalToast: true,
+  });
+  state.playing = wasPlay;
+}
+
+function exportSingleVideo(
+  cv,
+  fileBaseName,
+  { label = "Grabando...", keepPlayback = false, showFinalToast = true } = {},
+) {
+  return new Promise((resolve) => {
+    const fps = state.anim.fps || 30;
+    const duration = 10000; // 10 segundos fijos
+
+    const mp4Types = [
+      "video/mp4;codecs=avc1",
+      "video/mp4",
+      "video/webm;codecs=vp9",
+      "video/webm",
+    ];
+    const mime =
+      mp4Types.find((t) => {
+        try {
+          return MediaRecorder.isTypeSupported(t);
+        } catch (e) {
+          return false;
+        }
+      }) || "video/webm";
+    const ext = mime.includes("mp4") ? "mp4" : "webm";
+
+    let stream;
+    try {
+      stream = cv.captureStream(fps);
+    } catch (e) {
+      showToast("captureStream no soportado", "error");
+      resolve(false);
+      return;
     }
-  }, 100);
+
+    let rec;
+    try {
+      rec = new MediaRecorder(stream, {
+        mimeType: mime,
+        videoBitsPerSecond: 8_000_000,
+      });
+    } catch (e) {
+      stream.getTracks().forEach((track) => track.stop());
+      showToast("No se pudo iniciar MediaRecorder", "error");
+      resolve(false);
+      return;
+    }
+
+    const chunks = [];
+    const wasPlay = state.playing;
+    let settled = false;
+    let progressTimer = null;
+    if (!keepPlayback) state.playing = true;
+
+    const stopStream = () => {
+      stream.getTracks().forEach((track) => track.stop());
+    };
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      if (progressTimer) clearInterval(progressTimer);
+      stopStream();
+      if (!keepPlayback) state.playing = wasPlay;
+      resolve(ok);
+    };
+
+    rec.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+    rec.onstop = () => {
+      downloadURL(
+        URL.createObjectURL(new Blob(chunks, { type: mime })),
+        `${fileBaseName}.${ext}`,
+      );
+      if (showFinalToast) {
+        showProgress(false);
+        showToast(`Video exportado (10s · ${ext.toUpperCase()})`, "success");
+      }
+      finish(true);
+    };
+    rec.onerror = () => {
+      showProgress(false);
+      showToast("No se pudo exportar el video", "error");
+      finish(false);
+    };
+
+    // Reiniciar animación desde el principio antes de grabar
+    if ([4, 5, 7, 8, 9].includes(state.posterSlide)) {
+      if (slide4Animation) slide4Animation.reset();
+    } else {
+      if (currentAnimation) currentAnimation.reset();
+    }
+
+    showProgress(true, label);
+    try {
+      rec.start();
+    } catch (e) {
+      showProgress(false);
+      showToast("No se pudo iniciar la grabación", "error");
+      finish(false);
+      return;
+    }
+    let elapsed = 0;
+    progressTimer = setInterval(() => {
+      elapsed += 100;
+      updateProgress(
+        elapsed / duration,
+        `${label} · ${(elapsed / 1000).toFixed(1)}s / 10s`,
+      );
+      if (elapsed >= duration) {
+        if (rec.state !== "inactive") rec.stop();
+      }
+    }, 100);
+  });
 }
 
 function downloadDataURL(url, name) {
@@ -3465,12 +4114,17 @@ function updateProgress(ratio, msg) {
 document.addEventListener("DOMContentLoaded", async () => {
   // Filtrar paletas WCAG programáticamente (excluye cualquiera que no cumpla 4.5:1)
   WCAG_PALETTES = WCAG_PALETTES_DEF.filter((p) => meetsAA(p.bg, p.fg));
+  restorePersistentState();
+  await restoreSlide9LayoutFiles();
+  lastValidBg = state.preset.bg;
+  lastValidFg = state.preset.fg;
 
   await initLogos();
   p5Instance = new p5(sketch);
   setTimeout(resizeCanvasWrapper, 80);
   bindControls();
   buildWcagSwatches();
-  updateContrastUI();
+  syncControlsFromState();
+  setupPersistentStateAutosave();
   window.addEventListener("resize", resizeCanvasWrapper);
 });

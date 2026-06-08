@@ -77,7 +77,7 @@
       <aside id="sidebar">
         <div id="sidebar-inner">
           <!-- ——— 0. FORMATO ——— -->
-          <details class="section" open>
+          <details class="section">
             <summary class="section-header">
               <span>Formato</span>
               <svg
@@ -149,22 +149,23 @@
                 </button>
               </div>
               <div class="sub-group" id="slide9-layout-controls" style="display: none">
-                <div class="sub-label">Layout de texto</div>
+                <div class="sub-label">Layouts de texto</div>
                 <input
                   type="file"
                   id="slide9-layout-file"
                   accept="image/png"
+                  multiple
                   class="visually-hidden-file"
                 />
                 <button id="btn-upload-slide9-layout" class="btn-action">
-                  Subir layout PNG
+                  Subir layouts PNG
                 </button>
                 <button
                   id="btn-toggle-slide9-palette-bg"
                   class="btn-action"
                   style="margin-top: 6px"
                 >
-                  Cromática animación
+                  Usar colores de paleta
                 </button>
                 <button
                   id="btn-clear-slide9-layout"
@@ -176,6 +177,7 @@
                 <div id="slide9-layout-name" class="file-status">
                   Sin archivo
                 </div>
+                <div id="slide9-layout-list" class="slide9-layout-list"></div>
               </div>
               <div class="sub-group" id="slide7-controls" style="display: none">
                 <div class="sub-label">Día anterior</div>
@@ -235,7 +237,7 @@
           </details>
 
           <!-- ——— 1. LAYOUT Y GRILLA ——— -->
-          <details class="section" open>
+          <details class="section">
             <summary class="section-header">
               <span>Layout y Grilla</span>
               <svg
@@ -354,7 +356,7 @@
           </details>
 
           <!-- ——— 1.5. COLORES DEL AFICHE (WCAG) ——— -->
-          <details class="section" open>
+          <details class="section">
             <summary class="section-header">
               <span>Colores del afiche</span>
               <svg
@@ -774,7 +776,7 @@
           </details>
 
           <!-- ——— 4. EXPORTACIÓN ——— -->
-          <details class="section">
+          <details class="section" open>
             <summary class="section-header">
               <span>Exportación</span>
               <svg
@@ -825,6 +827,7 @@
       <section id="canvas-area">
         <div id="canvas-wrapper">
           <div id="canvas-container"></div>
+          <div id="slide9-preview-strip" class="slide9-preview-strip hidden"></div>
         </div>
       </section>
     </main>

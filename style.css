@@ -555,6 +555,64 @@ details[open] .chevron { transform: rotate(180deg); }
   color: var(--text-3);
 }
 
+/* ─── Slide 9 batch previews ───────────────────────── */
+.slide9-layout-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+.slide9-layout-thumb,
+.slide9-preview-frame {
+  position: relative;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+  cursor: pointer;
+}
+.slide9-layout-thumb {
+  aspect-ratio: 4 / 5;
+}
+.slide9-layout-thumb.active,
+.slide9-preview-frame.active {
+  border-color: var(--text);
+}
+.slide9-layout-thumb img,
+.slide9-preview-frame canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.slide9-layout-thumb span,
+.slide9-preview-frame span {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--bg);
+  background: var(--text);
+}
+.slide9-preview-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(140px, 1fr);
+  gap: 8px;
+  width: min(100%, 760px);
+  margin-top: 10px;
+  overflow-x: auto;
+}
+.slide9-preview-frame {
+  aspect-ratio: 4 / 5;
+  min-width: 140px;
+}
+
 /* ─── Toolbar contrast badge ────────────────────────── */
 .toolbar-contrast {
   font-size: 10px;
@@ -650,8 +708,10 @@ details[open] .chevron { transform: rotate(180deg); }
 
 #canvas-wrapper {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   width: 100%;
   height: 100%;
 }

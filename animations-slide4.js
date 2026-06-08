@@ -1581,7 +1581,7 @@ function getSlide9PaletteList(stateRef, fallbackRgb) {
   const source = getSlide9PaletteSource();
   if (!source.length) return null;
 
-  const tint = 0.78;
+  const tint = 0.58;
   return source.map((item) =>
     parsePaletteHex(item.bg).map((v, i) =>
       Math.round(fallbackRgb[i] * (1 - tint) + v * tint),
@@ -2314,6 +2314,223 @@ class PixelSparkField extends BaseAnimation {
 }
 
 /* =====================================================
+   14. ORGANIC PIXEL FLOW
+   Corrientes orgánicas renderizadas como bloques pixelados.
+   ===================================================== */
+class OrganicPixelFlow extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = state.posterSlide === 9 ? 18 : 14;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    this._particles = [];
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+    this._init();
+  }
+
+  _init() {
+    const p = this.p;
+    this._particles = Array.from({ length: 150 }, (_, i) => ({
+      x: p.random(CANVAS_W),
+      y: p.random(CANVAS_H),
+      age: p.random(1000),
+      size: Math.floor(p.random(1, 4)),
+      phase: p.random(1000) + i * 23,
+    }));
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const p = this.p;
+    const drift = 0.55 + speed * 0.42;
+    for (const particle of this._particles) {
+      const n = p.noise(
+        particle.x * 0.0028,
+        particle.y * 0.0028,
+        this.seed + this._frame * 0.004 * speed,
+      );
+      const angle =
+        n * Math.PI * 4 +
+        Math.sin(this._frame * 0.01 * speed + particle.phase) * 0.75;
+      particle.x += Math.cos(angle) * drift * this._cellSz * 0.42;
+      particle.y += Math.sin(angle) * drift * this._cellSz * 0.42;
+      particle.age += speed;
+
+      if (
+        particle.x < -this._cellSz ||
+        particle.y < -this._cellSz ||
+        particle.x > CANVAS_W + this._cellSz ||
+        particle.y > CANVAS_H + this._cellSz ||
+        particle.age > 1200
+      ) {
+        particle.x = p.random(CANVAS_W);
+        particle.y = p.random(CANVAS_H);
+        particle.age = 0;
+      }
+    }
+  }
+
+  render() {
+    const ctx = this.p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.012 * speed;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    for (const particle of this._particles) {
+      const gx = Math.round(particle.x / sz) * sz;
+      const gy = Math.round(particle.y / sz) * sz;
+      const pulse = 0.5 + 0.5 * Math.sin(t * 4 + particle.phase);
+      const alpha = 0.07 + pulse * 0.28;
+      const blocks = particle.size + (pulse > 0.72 ? 1 : 0);
+      ctx.fillStyle = slide9PaletteFillStyle(
+        this.state,
+        [fR, fG, fB],
+        particle.phase + this._frame,
+        alpha,
+      );
+      ctx.fillRect(
+        gx - Math.floor(blocks / 2) * sz,
+        gy - Math.floor(blocks / 2) * sz,
+        blocks * sz,
+        blocks * sz,
+      );
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+    this._init();
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   15. CELLULAR PIXEL BLOOM
+   Colonias pixeladas que crecen, se contraen y migran lentamente.
+   ===================================================== */
+class CellularPixelBloom extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = state.posterSlide === 9 ? 22 : 18;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    this._blooms = [];
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+    this._init();
+  }
+
+  _init() {
+    const p = this.p;
+    this._blooms = Array.from({ length: 26 }, (_, i) => ({
+      cx: p.random(this._cols),
+      cy: p.random(this._rows),
+      radius: p.random(2.2, 7.5),
+      density: p.random(0.36, 0.72),
+      phase: p.random(1000) + i * 31,
+      vx: p.random(-0.012, 0.012),
+      vy: p.random(-0.012, 0.012),
+    }));
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    for (const bloom of this._blooms) {
+      bloom.cx += bloom.vx * speed;
+      bloom.cy += bloom.vy * speed;
+      if (bloom.cx < -bloom.radius) bloom.cx = this._cols + bloom.radius;
+      if (bloom.cy < -bloom.radius) bloom.cy = this._rows + bloom.radius;
+      if (bloom.cx > this._cols + bloom.radius) bloom.cx = -bloom.radius;
+      if (bloom.cy > this._rows + bloom.radius) bloom.cy = -bloom.radius;
+    }
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = this.p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.018 * speed;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    for (const bloom of this._blooms) {
+      const breathing =
+        bloom.radius * (0.78 + 0.28 * Math.sin(t * 2.2 + bloom.phase));
+      const minC = Math.max(0, Math.floor(bloom.cx - breathing - 1));
+      const maxC = Math.min(this._cols - 1, Math.ceil(bloom.cx + breathing + 1));
+      const minR = Math.max(0, Math.floor(bloom.cy - breathing - 1));
+      const maxR = Math.min(this._rows - 1, Math.ceil(bloom.cy + breathing + 1));
+
+      ctx.fillStyle = slide9PaletteFillStyle(
+        this.state,
+        [fR, fG, fB],
+        bloom.phase,
+        0.2,
+      );
+
+      for (let r = minR; r <= maxR; r++) {
+        for (let c = minC; c <= maxC; c++) {
+          const dx = c - bloom.cx;
+          const dy = r - bloom.cy;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > breathing) continue;
+
+          const edge = 1 - dist / breathing;
+          const n = p.noise(c * 0.18, r * 0.18, bloom.phase + t);
+          const alive = n + edge * bloom.density > 0.58;
+          if (!alive) continue;
+
+          const alpha = Math.min(0.5, 0.08 + edge * 0.34 + n * 0.08);
+          ctx.fillStyle = slide9PaletteFillStyle(
+            this.state,
+            [fR, fG, fB],
+            bloom.phase + c * 13 + r * 17,
+            alpha,
+          );
+          ctx.fillRect(c * sz + 1, r * sz + 1, sz - 2, sz - 2);
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+    this._init();
+  }
+  setParams() {}
+}
+
+/* =====================================================
    REGISTRO DE ANIMACIONES SLIDE 4
    ===================================================== */
 const ANIMATIONS_SLIDE4 = {
@@ -2328,6 +2545,8 @@ const ANIMATIONS_SLIDE4 = {
   "diagonal-pixel-waves": DiagonalPixelWaves,
   "mosaic-pixel-shift": MosaicPixelShift,
   "pixel-spark-field": PixelSparkField,
+  "organic-pixel-flow": OrganicPixelFlow,
+  "cellular-pixel-bloom": CellularPixelBloom,
 };
 
 /* =====================================================
@@ -2345,4 +2564,6 @@ const ANIMATIONS_SLIDE7 = {
   "diagonal-pixel-waves": DiagonalPixelWaves,
   "mosaic-pixel-shift": MosaicPixelShift,
   "pixel-spark-field": PixelSparkField,
+  "organic-pixel-flow": OrganicPixelFlow,
+  "cellular-pixel-bloom": CellularPixelBloom,
 };
