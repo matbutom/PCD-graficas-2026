@@ -130,6 +130,15 @@ const ANIM_OPTIONS_SLIDE4 = [
   { value: "pixel-spark-field", label: "Pixel Spark Field" },
   { value: "organic-pixel-flow", label: "Organic Pixel Flow" },
   { value: "cellular-pixel-bloom", label: "Cellular Pixel Bloom" },
+  { value: "ripple-bit-rain", label: "Ripple Bit Rain" },
+  { value: "circuit-trace-pixels", label: "Circuit Trace Pixels" },
+  { value: "data-tide-blocks", label: "Data Tide Blocks" },
+  { value: "chromatic-bit-fog", label: "Chromatic Bit Fog" },
+  { value: "dither-weave-texture", label: "Dither Weave Texture" },
+  { value: "halftone-pixel-grain", label: "Halftone Pixel Grain" },
+  { value: "moire-pixel-static", label: "Moiré Pixel Static" },
+  { value: "eroded-pixel-paper", label: "Eroded Pixel Paper" },
+  { value: "woven-code-noise", label: "Woven Code Noise" },
 ];
 
 const PROJECT_CATEGORIES = [
@@ -308,6 +317,7 @@ const state = {
   posterSlide: 0,
   showExtraLogos: true,
   showConvocatoriaTag: true,
+  slide3Slide9Bg: false,
 
   slide7: {
     fechaVieja: "21",
@@ -534,6 +544,28 @@ let slide9BackgroundCanvas = null;
 let slide9PreviewFramePending = false;
 let slide9PreviewKey = "";
 
+function isSlide3Slide9BgActive(slide = state.posterSlide) {
+  return slide === 3 && state.slide3Slide9Bg;
+}
+
+function getPosterAnimMode(slide = state.posterSlide) {
+  if ([4, 5].includes(slide)) return "slide45";
+  if ([7, 8, 9].includes(slide) || isSlide3Slide9BgActive(slide)) {
+    return "slide7";
+  }
+  return "poster";
+}
+
+function withSlide9PosterContext(fn) {
+  const prev = state.posterSlide;
+  state.posterSlide = 9;
+  try {
+    return fn();
+  } finally {
+    state.posterSlide = prev;
+  }
+}
+
 const sketch = (p) => {
   p.setup = () => {
     const cv = p.createCanvas(CANVAS_W, CANVAS_H);
@@ -558,14 +590,18 @@ const sketch = (p) => {
     const [bgR, bgG, bgB] = hexRgb(state.preset.bg);
     p.background(bgR, bgG, bgB);
 
-    if ([4, 5, 9].includes(state.posterSlide)) {
+    if ([4, 5, 9].includes(state.posterSlide) || isSlide3Slide9BgActive()) {
       if (!slide4Animation) initSlide4Animation();
       if (slide4Animation) {
         p.push();
-        if (state.posterSlide === 9) {
+        if (state.posterSlide === 9 || isSlide3Slide9BgActive()) {
           p.drawingContext.globalAlpha = state.anim.opacity / 100;
         }
-        slide4Animation.draw();
+        if (isSlide3Slide9BgActive()) {
+          withSlide9PosterContext(() => slide4Animation.draw());
+        } else {
+          slide4Animation.draw();
+        }
         p.drawingContext.globalAlpha = 1;
         p.pop();
       }
@@ -591,9 +627,9 @@ const sketch = (p) => {
       ? (slide4Animation?.getPosterAlpha?.() ?? 0)
       : [5, 6, 7, 8].includes(state.posterSlide)
         ? 1
-        : state.posterSlide === 9
+        : state.posterSlide === 9 || isSlide3Slide9BgActive()
           ? 1
-        : (currentAnimation?.getPosterAlpha?.() ?? 1);
+          : (currentAnimation?.getPosterAlpha?.() ?? 1);
     if (posterAlpha > 0.004) {
       p.drawingContext.globalAlpha = posterAlpha;
       if (state.format === "banner") {
@@ -634,7 +670,7 @@ const sketch = (p) => {
 };
 
 function dispatchMouse(p, type) {
-  const anim = [4, 5, 9].includes(state.posterSlide)
+  const anim = [4, 5, 9].includes(state.posterSlide) || isSlide3Slide9BgActive()
     ? slide4Animation
     : currentAnimation;
   if (!anim) return;
@@ -653,11 +689,13 @@ function initAnimation() {
 
 function initSlide4Animation() {
   if (!p5Instance) return;
-  if ([7, 8, 9].includes(state.posterSlide)) {
+  if ([7, 8, 9].includes(state.posterSlide) || isSlide3Slide9BgActive()) {
     if (typeof ANIMATIONS_SLIDE7 === "undefined") return;
     const AnimClass = ANIMATIONS_SLIDE7[state.anim.slide7Anim];
     if (!AnimClass) return;
-    slide4Animation = new AnimClass(p5Instance, state);
+    slide4Animation = isSlide3Slide9BgActive()
+      ? withSlide9PosterContext(() => new AnimClass(p5Instance, state))
+      : new AnimClass(p5Instance, state);
   } else {
     if (typeof ANIMATIONS_SLIDE4 === "undefined") return;
     const AnimClass = ANIMATIONS_SLIDE4[state.anim.slide4Anim];
@@ -2969,11 +3007,7 @@ function syncControlsFromState() {
   setControlValue("grid-opacity", state.preset.gridOpacity);
   setLabelText("grid-opacity-val", state.preset.gridOpacity);
 
-  const mode = [4, 5].includes(state.posterSlide)
-    ? "slide45"
-    : [7, 8, 9].includes(state.posterSlide)
-      ? "slide7"
-      : "poster";
+  const mode = getPosterAnimMode();
   rebuildAnimSelect(mode);
   setControlValue(
     "anim-select",
@@ -3041,6 +3075,7 @@ function syncControlsFromState() {
   }
 
   updateContrastUI();
+  updateSlide3BackgroundControls();
   updateSlide8TypographyControls();
   updateSlide9LayoutControls();
 }
@@ -3164,6 +3199,22 @@ function updateSlide8TypographyControls() {
       ? "Unir convocatoria"
       : "Dividir convocatoria";
     btn.classList.toggle("active", state.slide8.splitConvocatoria);
+  }
+}
+
+function updateSlide3BackgroundControls() {
+  const controls = document.getElementById("slide3-bg-controls");
+  if (controls) {
+    controls.style.display =
+      state.format !== "banner" && state.posterSlide === 3 ? "" : "none";
+  }
+
+  const btn = document.getElementById("btn-toggle-slide3-slide9-bg");
+  if (btn) {
+    btn.classList.toggle("active", state.slide3Slide9Bg);
+    btn.textContent = state.slide3Slide9Bg
+      ? "Fondo slide 9 activo"
+      : "Activar fondo slide 9";
   }
 }
 
@@ -3439,10 +3490,13 @@ function bindControls() {
     const sc = document.getElementById("poster-slide-controls");
     const elc = document.getElementById("extra-logos-controls");
     const ctc = document.getElementById("convocatoria-tag-controls");
+    const s3c = document.getElementById("slide3-bg-controls");
     if (bc) bc.style.display = isBanner ? "" : "none";
     if (sc) sc.style.display = isBanner ? "none" : "";
     if (elc) elc.style.display = isBanner ? "none" : "";
     if (ctc) ctc.style.display = isBanner ? "none" : "";
+    if (s3c)
+      s3c.style.display = !isBanner && state.posterSlide === 3 ? "" : "none";
   });
 
   onChange("poster-slide-select", (e) => {
@@ -3450,22 +3504,17 @@ function bindControls() {
     state.posterSlide = Number(e.target.value);
 
     // Determinar el modo de animación (Hero Visual vs Poster Estándar)
-    const prevMode = [4, 5].includes(prev)
-      ? "slide45"
-      : [7, 8, 9].includes(prev)
-        ? "slide7"
-        : "poster";
-    const curMode = [4, 5].includes(state.posterSlide)
-      ? "slide45"
-      : [7, 8, 9].includes(state.posterSlide)
-        ? "slide7"
-        : "poster";
+    const prevMode = getPosterAnimMode(prev);
+    const curMode = getPosterAnimMode();
 
     // Reconstruir selector de animaciones si cambiamos de modo
     if (prevMode !== curMode) rebuildAnimSelect(curMode);
 
     // Gestionar la instancia de animación de capa superior (Slide 4/5/7)
-    if ([4, 5, 7, 8, 9].includes(state.posterSlide)) {
+    if (
+      [4, 5, 7, 8, 9].includes(state.posterSlide) ||
+      isSlide3Slide9BgActive()
+    ) {
       if (!slide4Animation || prevMode !== curMode || prev !== state.posterSlide)
         initSlide4Animation();
     } else {
@@ -3482,6 +3531,7 @@ function bindControls() {
     if (s7Extra) {
       s7Extra.classList.toggle("hidden", state.posterSlide !== 7);
     }
+    updateSlide3BackgroundControls();
     updateSlide8TypographyControls();
     updateSlide9LayoutControls();
   });
@@ -3517,6 +3567,25 @@ function bindControls() {
       state.slide9.tintAnimations
         ? "Colores de paleta activos"
         : "Colores de paleta desactivados",
+    );
+  });
+
+  onClick("btn-toggle-slide3-slide9-bg", () => {
+    const prevMode = getPosterAnimMode();
+    state.slide3Slide9Bg = !state.slide3Slide9Bg;
+    const curMode = getPosterAnimMode();
+    if (prevMode !== curMode) rebuildAnimSelect(curMode);
+    if (state.slide3Slide9Bg) {
+      initSlide4Animation();
+    } else {
+      slide4Animation = null;
+      if (currentAnimation) currentAnimation.reset();
+    }
+    updateSlide3BackgroundControls();
+    showToast(
+      state.slide3Slide9Bg
+        ? "Fondo slide 9 activo"
+        : "Fondo slide 9 desactivado",
     );
   });
 
@@ -3742,7 +3811,10 @@ function bindControls() {
       if (pixelRow)
         pixelRow.style.display =
           e.target.value === "pixel-explosion" ? "" : "none";
-    } else if ([7, 8, 9].includes(state.posterSlide)) {
+    } else if (
+      [7, 8, 9].includes(state.posterSlide) ||
+      isSlide3Slide9BgActive()
+    ) {
       state.anim.slide7Anim = e.target.value;
       initSlide4Animation();
       if (pixelRow)
@@ -3760,7 +3832,7 @@ function bindControls() {
   });
   onChange("anim-font", (e) => {
     state.anim.font = e.target.value;
-    const anim = [4, 5, 7, 8, 9].includes(state.posterSlide)
+    const anim = getPosterAnimMode() !== "poster"
       ? slide4Animation
       : currentAnimation;
     if (anim) anim.reset();
@@ -3786,21 +3858,21 @@ function bindControls() {
   );
   slider("anim-text-size", "anim-text-size-val", (v) => {
     state.anim.textSize = Math.round(v);
-    const anim = [4, 5, 7, 8, 9].includes(state.posterSlide)
+    const anim = getPosterAnimMode() !== "poster"
       ? slide4Animation
       : currentAnimation;
     if (anim) anim.reset();
   });
   onChange("anim-seed", (e) => {
     state.anim.seed = parseInt(e.target.value) || 0;
-    if ([4, 5, 7, 8, 9].includes(state.posterSlide)) initSlide4Animation();
+    if (getPosterAnimMode() !== "poster") initSlide4Animation();
     else initAnimation();
   });
   onClick("btn-randomize-anim", () => {
     const seed = Math.floor(Math.random() * 99999);
     state.anim.seed = seed;
     el("anim-seed").value = seed;
-    if ([4, 5, 7, 8, 9].includes(state.posterSlide)) initSlide4Animation();
+    if (getPosterAnimMode() !== "poster") initSlide4Animation();
     else initAnimation();
     showToast("Nueva semilla: " + seed);
   });
@@ -3827,7 +3899,7 @@ function bindControls() {
   });
 
   onClick("btn-reset", () => {
-    const anim = [4, 5, 7, 8, 9].includes(state.posterSlide)
+    const anim = getPosterAnimMode() !== "poster"
       ? slide4Animation
       : currentAnimation;
     if (anim) anim.reset();
@@ -4052,7 +4124,7 @@ function exportSingleVideo(
     };
 
     // Reiniciar animación desde el principio antes de grabar
-    if ([4, 5, 7, 8, 9].includes(state.posterSlide)) {
+    if (getPosterAnimMode() !== "poster") {
       if (slide4Animation) slide4Animation.reset();
     } else {
       if (currentAnimation) currentAnimation.reset();

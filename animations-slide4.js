@@ -2531,6 +2531,739 @@ class CellularPixelBloom extends BaseAnimation {
 }
 
 /* =====================================================
+   16. RIPPLE BIT RAIN
+   Gotas verticales que dejan ondas pixeladas al tocar el fondo.
+   ===================================================== */
+class RippleBitRain extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = state.posterSlide === 9 ? 12 : 10;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    this._drops = [];
+    this._ripples = [];
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+    this._init();
+  }
+
+  _init() {
+    const p = this.p;
+    this._drops = Array.from({ length: 52 }, (_, i) => ({
+      c: Math.floor(p.random(this._cols)),
+      y: p.random(-this._rows, this._rows),
+      speed: p.random(0.45, 1.7),
+      len: Math.floor(p.random(3, 11)),
+      phase: p.random(1000) + i * 19,
+    }));
+    this._ripples = [];
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+    const p = this.p;
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+
+    for (const drop of this._drops) {
+      drop.y += drop.speed * speed * 0.42;
+      if (drop.y > this._rows + drop.len) {
+        this._ripples.push({
+          c: drop.c,
+          r: this._rows - Math.floor(p.random(4, 18)),
+          age: 0,
+          maxAge: Math.floor(p.random(26, 58)),
+          phase: drop.phase,
+        });
+        drop.c = Math.floor(p.random(this._cols));
+        drop.y = -p.random(3, this._rows * 0.45);
+        drop.speed = p.random(0.45, 1.7);
+        drop.len = Math.floor(p.random(3, 11));
+      }
+    }
+
+    this._ripples = this._ripples.filter((r) => {
+      r.age += speed * 0.38;
+      return r.age < r.maxAge;
+    });
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+
+    ctx.save();
+    for (const drop of this._drops) {
+      for (let k = 0; k < drop.len; k++) {
+        const r = Math.floor(drop.y - k);
+        if (r < 0 || r >= this._rows) continue;
+        const wobble = Math.round(
+          Math.sin(drop.phase + this._frame * 0.08 + k) * 1.5,
+        );
+        const alpha = Math.max(0.06, 0.62 - k / drop.len);
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          drop.phase + drop.c * 13 + r,
+          alpha,
+        );
+        ctx.fillRect((drop.c + wobble) * sz + 2, r * sz + 2, sz - 4, sz - 4);
+      }
+    }
+
+    for (const ripple of this._ripples) {
+      const progress = ripple.age / ripple.maxAge;
+      const radius = 2 + progress * 15;
+      const alpha = Math.max(0, (1 - progress) * 0.42);
+      for (let a = 0; a < Math.PI * 2; a += Math.PI / 10) {
+        const c = Math.round(ripple.c + Math.cos(a) * radius * 1.45);
+        const r = Math.round(ripple.r + Math.sin(a) * radius * 0.42);
+        if (c < 0 || r < 0 || c >= this._cols || r >= this._rows) continue;
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          ripple.phase + c * 7 + r * 23,
+          alpha,
+        );
+        ctx.fillRect(c * sz + 1, r * sz + 1, sz - 2, sz - 2);
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+    this._init();
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   17. CIRCUIT TRACE PIXELS
+   Trazos ortogonales que se encienden como pistas de placa.
+   ===================================================== */
+class CircuitTracePixels extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = state.posterSlide === 9 ? 18 : 14;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    this._traces = [];
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+    this._init();
+  }
+
+  _init() {
+    const p = this.p;
+    this._traces = Array.from({ length: 34 }, (_, i) => {
+      const horizontal = p.random() > 0.5;
+      return {
+        c: Math.floor(p.random(this._cols)),
+        r: Math.floor(p.random(this._rows)),
+        len: Math.floor(p.random(5, 22)),
+        horizontal,
+        phase: p.random(1000) + i * 37,
+        branch: Math.floor(p.random(2, 9)),
+      };
+    });
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+    if (this._frame % 96 === 0) this._init();
+  }
+
+  render() {
+    const ctx = this.p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.035 * speed;
+
+    ctx.save();
+    for (const trace of this._traces) {
+      const head = Math.floor(((t + trace.phase) % 1) * (trace.len + 8));
+      for (let i = 0; i < trace.len; i++) {
+        const lit = Math.max(0, 1 - Math.abs(i - head) / 7);
+        const ghost = 0.06 + 0.12 * Math.sin(t * 3 + trace.phase + i);
+        const alpha = Math.min(0.64, Math.max(ghost, lit * 0.58));
+        if (alpha < 0.08) continue;
+        const c = trace.horizontal ? trace.c + i : trace.c;
+        const r = trace.horizontal ? trace.r : trace.r + i;
+        if (c < 0 || r < 0 || c >= this._cols || r >= this._rows) continue;
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          trace.phase + i,
+          alpha,
+        );
+        ctx.fillRect(c * sz + 3, r * sz + 3, sz - 6, sz - 6);
+
+        if (i === trace.branch) {
+          const dir = trace.phase % 2 > 1 ? 1 : -1;
+          for (let b = 1; b < 6; b++) {
+            const bc = trace.horizontal ? c : c + b * dir;
+            const br = trace.horizontal ? r + b * dir : r;
+            if (bc < 0 || br < 0 || bc >= this._cols || br >= this._rows)
+              continue;
+            ctx.fillStyle = slide9PaletteFillStyle(
+              this.state,
+              [fR, fG, fB],
+              trace.phase + b * 17,
+              alpha * (1 - b / 7),
+            );
+            ctx.fillRect(bc * sz + 4, br * sz + 4, sz - 8, sz - 8);
+          }
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+    this._init();
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   18. DATA TIDE BLOCKS
+   Franjas de bloques que suben y bajan como una marea digital.
+   ===================================================== */
+class DataTideBlocks extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = state.posterSlide === 9 ? 15 : 12;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.018 * speed;
+    const tides = [
+      { base: 0.18, ampA: 0.075, ampB: 0.045, width: 8, phase: 0.6, alpha: 0.36 },
+      { base: 0.38, ampA: 0.105, ampB: 0.07, width: 11, phase: 2.1, alpha: 0.44 },
+      { base: 0.62, ampA: 0.12, ampB: 0.065, width: 12, phase: 4.4, alpha: 0.48 },
+      { base: 0.82, ampA: 0.085, ampB: 0.052, width: 9, phase: 6.2, alpha: 0.38 },
+    ];
+
+    ctx.save();
+    for (let c = 0; c < this._cols; c++) {
+      const tideRows = tides.map((wave) => ({
+        ...wave,
+        row:
+          this._rows * wave.base +
+          Math.sin(c * 0.19 + t * 3.2 + wave.phase) *
+            this._rows *
+            wave.ampA +
+          Math.sin(c * 0.047 - t * 1.7 + wave.phase * 1.7) *
+            this._rows *
+            wave.ampB,
+      }));
+
+      for (let r = 0; r < this._rows; r++) {
+        const n = p.noise(c * 0.12, r * 0.18, this.seed + t);
+        let waveLevel = 0;
+        let waveAlpha = 0;
+        let waveKey = 0;
+        for (let i = 0; i < tideRows.length; i++) {
+          const wave = tideRows[i];
+          const d = Math.abs(r - wave.row);
+          const local = Math.max(0, 1 - d / wave.width);
+          if (local <= 0) continue;
+          const shimmer =
+            0.78 +
+            0.22 * Math.sin(t * 4.6 + c * 0.31 + r * 0.17 + wave.phase);
+          const contribution = local * wave.alpha * shimmer;
+          waveLevel += contribution;
+          if (contribution > waveAlpha) {
+            waveAlpha = contribution;
+            waveKey = i * 101;
+          }
+        }
+
+        const level = waveLevel * 1.65 + n * 0.28;
+        if (level < 0.48) continue;
+        const alpha = Math.min(0.58, 0.04 + level * 0.38);
+        const h = level > 0.78 ? sz - 2 : Math.max(3, Math.round(sz * 0.45));
+        const yOffset = Math.floor((sz - h) / 2);
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          waveKey + c * 29 + r * 31 + Math.floor(t * 10),
+          alpha,
+        );
+        ctx.fillRect(c * sz + 1, r * sz + yOffset, sz - 2, h);
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   19. CHROMATIC BIT FOG
+   Nubes pixeladas con capas lentas y profundidad suave.
+   ===================================================== */
+class ChromaticBitFog extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = state.posterSlide === 9 ? 20 : 16;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.008 * speed;
+
+    ctx.save();
+    for (let layer = 0; layer < 3; layer++) {
+      const scale = 0.045 + layer * 0.028;
+      const threshold = 0.48 + layer * 0.055;
+      for (let r = 0; r < this._rows; r++) {
+        for (let c = 0; c < this._cols; c++) {
+          const n = p.noise(
+            c * scale + t * (layer + 1.2),
+            r * scale - t * (layer + 0.7),
+            this.seed + layer * 200,
+          );
+          if (n < threshold) continue;
+          const alpha = Math.min(0.34, (n - threshold) * (1.15 - layer * 0.16));
+          const grow = layer === 0 && n > 0.7 ? 1 : 0;
+          const inset = 3 - Math.min(2, layer);
+          ctx.fillStyle = slide9PaletteFillStyle(
+            this.state,
+            [fR, fG, fB],
+            layer * 97 + c * 5 + r * 11,
+            alpha,
+          );
+          ctx.fillRect(
+            c * sz + inset,
+            r * sz + inset,
+            sz - inset * 2 + grow * sz,
+            sz - inset * 2 + grow * sz,
+          );
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   20. DITHER WEAVE TEXTURE
+   Trama cruzada con dithering que se desplaza muy lentamente.
+   ===================================================== */
+class DitherWeaveTexture extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = state.posterSlide === 9 ? 9 : 7;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.01 * speed;
+
+    ctx.save();
+    for (let r = 0; r < this._rows; r++) {
+      for (let c = 0; c < this._cols; c++) {
+        const diagonalA = (c + r + Math.floor(t * 18)) % 7;
+        const diagonalB = (c - r + 900 + Math.floor(t * 11)) % 9;
+        const weave = diagonalA === 0 || diagonalB === 0;
+        const n = p.noise(c * 0.18, r * 0.18, this.seed + t * 0.6);
+        const checker = (c + r + Math.floor(n * 4)) % 2 === 0;
+        if (!weave && (!checker || n < 0.62)) continue;
+
+        const alpha = weave ? 0.14 + n * 0.18 : 0.05 + n * 0.12;
+        const inset = weave ? 1 : 3;
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          c * 3 + r * 17 + diagonalA * 31,
+          alpha,
+        );
+        ctx.fillRect(c * sz + inset, r * sz + inset, sz - inset * 2, sz - inset * 2);
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   21. HALFTONE PIXEL GRAIN
+   Grano tipo semitono con clusters cuadrados de tamaño variable.
+   ===================================================== */
+class HalftonePixelGrain extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = state.posterSlide === 9 ? 14 : 11;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.006 * speed;
+
+    ctx.save();
+    for (let r = 0; r < this._rows; r++) {
+      for (let c = 0; c < this._cols; c++) {
+        const radial =
+          Math.sin(c * 0.16 + t * 2.1) * 0.18 +
+          Math.cos(r * 0.13 - t * 1.8) * 0.16;
+        const n = p.noise(c * 0.105 + t, r * 0.105 - t, this.seed);
+        const level = n + radial;
+        if (level < 0.43) continue;
+
+        const size = Math.max(3, Math.round(sz * Math.min(0.95, level)));
+        const x = c * sz + Math.floor((sz - size) / 2);
+        const y = r * sz + Math.floor((sz - size) / 2);
+        const alpha = Math.min(0.42, 0.04 + (level - 0.35) * 0.38);
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          c * 37 + r * 7 + Math.floor(level * 100),
+          alpha,
+        );
+        ctx.fillRect(x, y, size, size);
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   22. MOIRE PIXEL STATIC
+   Interferencia de dos tramas pixeladas con estática fina.
+   ===================================================== */
+class MoirePixelStatic extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = state.posterSlide === 9 ? 8 : 6;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.014 * speed;
+
+    ctx.save();
+    for (let r = 0; r < this._rows; r++) {
+      for (let c = 0; c < this._cols; c++) {
+        const a = Math.sin(c * 0.28 + r * 0.05 + t * 3.4);
+        const b = Math.sin(c * 0.07 - r * 0.24 - t * 2.7);
+        const interference = Math.abs(a - b);
+        const n = p.noise(c * 0.45, r * 0.45, this.seed + this._frame * 0.04);
+        if (interference < 0.22 && n < 0.78) continue;
+
+        const alpha = Math.min(0.34, 0.035 + interference * 0.16 + n * 0.12);
+        const wide = interference > 1.3;
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          c * 41 + r * 13 + Math.floor(interference * 20),
+          alpha,
+        );
+        ctx.fillRect(c * sz, r * sz, wide ? sz * 2 : sz - 1, sz - 1);
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   23. ERODED PIXEL PAPER
+   Manchas planas erosionadas como tinta en papel risográfico.
+   ===================================================== */
+class ErodedPixelPaper extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = state.posterSlide === 9 ? 16 : 13;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.004 * speed;
+
+    ctx.save();
+    for (let r = 0; r < this._rows; r++) {
+      for (let c = 0; c < this._cols; c++) {
+        const body = p.noise(c * 0.055 + t, r * 0.055 - t, this.seed);
+        const erosion = p.noise(c * 0.38, r * 0.38, this.seed + 400 + t * 3);
+        const edge = p.noise(c * 0.12 - t, r * 0.12 + t, this.seed + 900);
+        const alive = body > 0.5 && erosion > 0.28;
+        const fleck = !alive && body > 0.44 && erosion > 0.78;
+        if (!alive && !fleck) continue;
+
+        const alpha = fleck
+          ? 0.07 + erosion * 0.12
+          : Math.min(0.4, 0.08 + body * 0.22 + edge * 0.08);
+        const inset = fleck ? 5 : erosion > 0.55 ? 2 : 4;
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          c * 23 + r * 19 + Math.floor(body * 100),
+          alpha,
+        );
+        ctx.fillRect(c * sz + inset, r * sz + inset, sz - inset * 2, sz - inset * 2);
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   24. WOVEN CODE NOISE
+   Hebras horizontales y verticales hechas de bits pixelados.
+   ===================================================== */
+class WovenCodeNoise extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = state.posterSlide === 9 ? 10 : 8;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz);
+    this._rows = Math.ceil(CANVAS_H / this._cellSz);
+    p.randomSeed(this.seed);
+    p.noiseSeed(this.seed);
+  }
+
+  advanceState() {
+    if (!this.state.playing) return;
+    this._frame++;
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const sz = this._cellSz;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.012 * speed;
+
+    ctx.save();
+    for (let r = 0; r < this._rows; r++) {
+      const rowThread = Math.sin(r * 0.52 + t * 3.1) > 0.62;
+      for (let c = 0; c < this._cols; c++) {
+        const colThread = Math.cos(c * 0.47 - t * 2.6) > 0.68;
+        const n = p.noise(c * 0.22, r * 0.22, this.seed + t);
+        const crossing = rowThread && colThread;
+        const bit = ((c * 17 + r * 31 + Math.floor(t * 12)) % 11) < 5;
+        if (!crossing && !(bit && (rowThread || colThread) && n > 0.42)) continue;
+
+        const alpha = crossing ? 0.38 + n * 0.16 : 0.08 + n * 0.16;
+        const w = rowThread ? sz - 1 : Math.max(3, Math.round(sz * 0.48));
+        const h = colThread ? sz - 1 : Math.max(3, Math.round(sz * 0.48));
+        ctx.fillStyle = slide9PaletteFillStyle(
+          this.state,
+          [fR, fG, fB],
+          c * 43 + r * 2 + (crossing ? 700 : 0),
+          Math.min(0.52, alpha),
+        );
+        ctx.fillRect(
+          c * sz + Math.floor((sz - w) / 2),
+          r * sz + Math.floor((sz - h) / 2),
+          w,
+          h,
+        );
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this.p.randomSeed(this.seed);
+    this.p.noiseSeed(this.seed);
+  }
+  setParams() {}
+}
+
+/* =====================================================
    REGISTRO DE ANIMACIONES SLIDE 4
    ===================================================== */
 const ANIMATIONS_SLIDE4 = {
@@ -2547,6 +3280,15 @@ const ANIMATIONS_SLIDE4 = {
   "pixel-spark-field": PixelSparkField,
   "organic-pixel-flow": OrganicPixelFlow,
   "cellular-pixel-bloom": CellularPixelBloom,
+  "ripple-bit-rain": RippleBitRain,
+  "circuit-trace-pixels": CircuitTracePixels,
+  "data-tide-blocks": DataTideBlocks,
+  "chromatic-bit-fog": ChromaticBitFog,
+  "dither-weave-texture": DitherWeaveTexture,
+  "halftone-pixel-grain": HalftonePixelGrain,
+  "moire-pixel-static": MoirePixelStatic,
+  "eroded-pixel-paper": ErodedPixelPaper,
+  "woven-code-noise": WovenCodeNoise,
 };
 
 /* =====================================================
@@ -2566,4 +3308,13 @@ const ANIMATIONS_SLIDE7 = {
   "pixel-spark-field": PixelSparkField,
   "organic-pixel-flow": OrganicPixelFlow,
   "cellular-pixel-bloom": CellularPixelBloom,
+  "ripple-bit-rain": RippleBitRain,
+  "circuit-trace-pixels": CircuitTracePixels,
+  "data-tide-blocks": DataTideBlocks,
+  "chromatic-bit-fog": ChromaticBitFog,
+  "dither-weave-texture": DitherWeaveTexture,
+  "halftone-pixel-grain": HalftonePixelGrain,
+  "moire-pixel-static": MoirePixelStatic,
+  "eroded-pixel-paper": ErodedPixelPaper,
+  "woven-code-noise": WovenCodeNoise,
 };
