@@ -16,9 +16,13 @@ class GlitchOverload extends BaseAnimation {
     this.seed = Math.random() * 99999;
     this._f = 0;
     const isSlide8 = state.posterSlide === 8;
-    this._cW = isSlide8 ? 3 : 6; // ancho de celda en px
-    this._cH = isSlide8 ? 5 : 10; // alto de celda en px
-    this._fSz = isSlide8 ? 6 : 9; // tamaño de fuente
+    const isSlide10 = state.posterSlide === 10;
+    // En el A5 del slide 10 usamos una trama más gruesa para que cada
+    // carácter que construye las letras sea claramente reconocible.
+    this._cW = isSlide8 ? 3 : isSlide10 ? 12 : 6;
+    this._cH = isSlide8 ? 5 : isSlide10 ? 20 : 10;
+    this._fSz = isSlide8 ? 6 : isSlide10 ? 17 : 9;
+    this._textOnly = isSlide10;
     this._cols = Math.ceil(CANVAS_W / this._cW);
     this._rows = Math.ceil(CANVAS_H / this._cH);
     this._grid = null; // Uint8Array: 1=letra, 0=fondo
@@ -314,7 +318,7 @@ class GlitchOverload extends BaseAnimation {
     }
 
     // 1. Ruido de fondo — (Corregido: ahora se dibuja una sola vez)
-    if (bgBatch.s.length) {
+    if (!this._textOnly && bgBatch.s.length) {
       ctx.fillStyle = `rgba(${fR},${fG},${fB},0.10)`;
       let lastSz = -1;
       for (let k = 0; k < bgBatch.s.length; k++) {
@@ -356,10 +360,12 @@ class GlitchOverload extends BaseAnimation {
     }
 
     // 3. Block glitches encima
-    for (const g of this._blkGlitches) {
-      const [r2, g2, b2] = mono ? [fR, fG, fB] : this._palette[g.ci % nPal];
-      ctx.fillStyle = `rgba(${r2},${g2},${b2},0.82)`;
-      ctx.fillRect(g.c * cW, g.r * cH, g.cw * cW, g.rh * cH);
+    if (!this._textOnly) {
+      for (const g of this._blkGlitches) {
+        const [r2, g2, b2] = mono ? [fR, fG, fB] : this._palette[g.ci % nPal];
+        ctx.fillStyle = `rgba(${r2},${g2},${b2},0.82)`;
+        ctx.fillRect(g.c * cW, g.r * cH, g.cw * cW, g.rh * cH);
+      }
     }
 
     ctx.restore();
@@ -367,7 +373,7 @@ class GlitchOverload extends BaseAnimation {
     // Dibujamos logos solo si no es la Slide 7 para no ensuciar el diseño de bloque
     if (
       typeof drawSlide4Logos === "function" &&
-      ![7, 8, 9].includes(this.state.posterSlide)
+      ![7, 8, 9, 10].includes(this.state.posterSlide)
     )
       drawSlide4Logos(p);
   }
@@ -397,8 +403,16 @@ class PixelExplosion extends BaseAnimation {
     super(p, state);
     this.seed = Math.random() * 99999;
     this._frame = 0;
-    this._cellSz = state.posterSlide === 8 ? 5 : state.posterSlide === 9 ? 8 : 10;
+    this._cellSz =
+      state.posterSlide === 8
+        ? 5
+        : state.posterSlide === 9
+          ? 8
+          : state.posterSlide === 10
+            ? 20
+            : 10;
     this._gap = 1;
+    this._textOnly = state.posterSlide === 10;
     this._cols = Math.ceil(CANVAS_W / this._cellSz);
     this._rows = Math.ceil(CANVAS_H / this._cellSz);
     this._grid = null; // Uint8Array: 1=celda de texto, 0=fondo
@@ -450,7 +464,8 @@ class PixelExplosion extends BaseAnimation {
     off.drawingContext.textAlign = "left";
 
     // 1ª pasada: cada palabra escala al ancho del canvas (sin cap de altura)
-    const wordsToSample = this.state.posterSlide === 9 ? [] : SLIDE4_TITLE;
+    const wordsToSample =
+      this.state.posterSlide === 9 ? [] : SLIDE4_TITLE;
     const sizes = wordsToSample.map((word) => {
       let sz = 40;
       off.drawingContext.font = `900 ${sz}px ${_font}`;
@@ -545,7 +560,8 @@ class PixelExplosion extends BaseAnimation {
     const [fR, fG, fB] = this.getFg();
     this._palette[0] = [fR, fG, fB];
 
-    const mono = this.state.posterSlide === 5;
+    const mono =
+      this.state.posterSlide === 5 || this.state.posterSlide === 10;
     const contrastMode = this.state.anim?.slide4PixelMode === "contrast";
     const useFlat = mono || contrastMode;
 
@@ -587,7 +603,7 @@ class PixelExplosion extends BaseAnimation {
 
     if (
       typeof drawSlide4Logos === "function" &&
-      ![7, 8, 9].includes(this.state.posterSlide)
+      ![7, 8, 9, 10].includes(this.state.posterSlide)
     )
       drawSlide4Logos(p);
   }

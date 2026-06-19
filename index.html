@@ -96,6 +96,7 @@
               <div class="sub-group">
                 <select id="format-select" class="select-input select-full">
                   <option value="ig">Instagram — 1080×1350</option>
+                  <option value="a5">A5 — 1748×2480</option>
                   <option value="banner">Banner — 1600×400</option>
                 </select>
               </div>
@@ -115,6 +116,7 @@
                   <option value="7">7 — Extensión de plazo</option>
                   <option value="8">8 — Cierre convocatoria</option>
                   <option value="9">9 — Fondo pixel</option>
+                  <option value="10">10 — Hero visual A5</option>
                 </select>
               </div>
               <div class="sub-group" id="extra-logos-controls">
@@ -442,7 +444,9 @@
             </summary>
             <div class="section-body">
               <div class="sub-group">
-                <div class="sub-label">Paletas accesibles (WCAG AA)</div>
+                <div class="sub-label" id="palette-section-label">
+                  Paletas accesibles (WCAG AA)
+                </div>
                 <div class="wcag-swatches" id="wcag-swatches">
                   <!-- Filled by JS -->
                 </div>
@@ -512,7 +516,7 @@
           <!-- ——— 3. ANIMACIÓN ——— -->
           <details class="section" open>
             <summary class="section-header">
-              <span>Animación</span>
+              <span id="animation-section-label">Animación</span>
               <svg
                 class="chevron"
                 viewBox="0 0 24 24"

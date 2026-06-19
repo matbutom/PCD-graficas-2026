@@ -7,6 +7,8 @@
    ===================================================== */
 const IG_W = 1080;
 const IG_H = 1350;
+const A5_W = 1748;
+const A5_H = 2480;
 const BANNER_W = 1600;
 const BANNER_H = 400;
 const BANNER_SPLIT = 800; // x split: left text panel | right pixel grid
@@ -63,6 +65,28 @@ const WCAG_PALETTES_DEF = [
   { name: "Verde claro", bg: "#A2D9AA", fg: "#000000" },
   { name: "Verde oscuro", bg: "#49715B", fg: "#FFFFFF" },
   { name: "Amarillo tierra", bg: "#E8D24D", fg: "#000000" },
+];
+
+// Paletas fluorescentes recuperadas de la versión original del visualizador.
+const SLIDE10_PALETTES_DEF = [
+  { name: "Fluor Rosa", bg: "#0D0D0D", fg: "#FF70E0" },
+  { name: "Fluor Cyan", bg: "#0D0D0D", fg: "#00FFD4" },
+  { name: "Fluor Lima", bg: "#0D0D0D", fg: "#C6FF00" },
+  { name: "Fluor Violeta", bg: "#0D0D0D", fg: "#C280FF" },
+  { name: "Fluor Naranja", bg: "#111111", fg: "#FF9500" },
+  { name: "Fluor Rojo", bg: "#0D0D0D", fg: "#FF3C3C" },
+  { name: "Night Neon", bg: "#050510", fg: "#7FFF00" },
+  { name: "Tokyo Night", bg: "#13131F", fg: "#40E0FF" },
+  { name: "Rosa fondo", bg: "#FF70E0", fg: "#000000" },
+  { name: "Cyan fondo", bg: "#00FFD4", fg: "#000000" },
+  { name: "Lima fondo", bg: "#C6FF00", fg: "#000000" },
+  { name: "Violeta fondo", bg: "#C280FF", fg: "#000000" },
+  { name: "Naranja fondo", bg: "#FF9500", fg: "#000000" },
+  { name: "Rojo fondo", bg: "#FF3C3C", fg: "#000000" },
+  { name: "Azul referencia / blanco", bg: "#2D50F4", fg: "#FFFFFF" },
+  { name: "Azul referencia / negro", bg: "#2D50F4", fg: "#000000" },
+  { name: "Azul Processing / blanco", bg: "#0033FF", fg: "#FFFFFF" },
+  { name: "Azul Processing / negro", bg: "#0033FF", fg: "#000000" },
 ];
 // Populated after WCAG functions are defined (see bottom of file)
 let WCAG_PALETTES = [];
@@ -234,6 +258,7 @@ const state = {
     slide4Leading: 0.74,
     slide4PixelMode: "multi",
     slide7Anim: "glitch-overload",
+    slide10BgAnim: "pixel-drift",
     params: {
       "letter-physics": {
         text: "CONVOCATORIA ABIERTA",
@@ -533,6 +558,7 @@ let lastValidFg = "#000000";
 let p5Instance = null;
 let currentAnimation = null;
 let slide4Animation = null;
+let slide10HeroAnimation = null;
 let fpsFrames = 0;
 let fpsLastTime = performance.now();
 
@@ -543,12 +569,14 @@ let nextAnimName = null;
 let slide9BackgroundCanvas = null;
 let slide9PreviewFramePending = false;
 let slide9PreviewKey = "";
+let formatBeforeSlide10 = null;
 
 function isSlide3Slide9BgActive(slide = state.posterSlide) {
   return slide === 3 && state.slide3Slide9Bg;
 }
 
 function getPosterAnimMode(slide = state.posterSlide) {
+  if (slide === 10) return "slide10";
   if ([4, 5].includes(slide)) return "slide45";
   if ([7, 8, 9].includes(slide) || isSlide3Slide9BgActive(slide)) {
     return "slide7";
@@ -590,19 +618,30 @@ const sketch = (p) => {
     const [bgR, bgG, bgB] = hexRgb(state.preset.bg);
     p.background(bgR, bgG, bgB);
 
-    if ([4, 5, 9].includes(state.posterSlide) || isSlide3Slide9BgActive()) {
+    if ([4, 5, 9, 10].includes(state.posterSlide) || isSlide3Slide9BgActive()) {
       if (!slide4Animation) initSlide4Animation();
       if (slide4Animation) {
         p.push();
-        if (state.posterSlide === 9 || isSlide3Slide9BgActive()) {
+        if (
+          state.posterSlide === 9 ||
+          state.posterSlide === 10 ||
+          isSlide3Slide9BgActive()
+        ) {
           p.drawingContext.globalAlpha = state.anim.opacity / 100;
         }
         if (isSlide3Slide9BgActive()) {
+          withSlide9PosterContext(() => slide4Animation.draw());
+        } else if (state.posterSlide === 10) {
           withSlide9PosterContext(() => slide4Animation.draw());
         } else {
           slide4Animation.draw();
         }
         p.drawingContext.globalAlpha = 1;
+        p.pop();
+      }
+      if (state.posterSlide === 10 && slide10HeroAnimation) {
+        p.push();
+        slide10HeroAnimation.draw();
         p.pop();
       }
     } else {
@@ -623,7 +662,7 @@ const sketch = (p) => {
       }
     }
 
-    const posterAlpha = [4].includes(state.posterSlide)
+    const posterAlpha = [4, 10].includes(state.posterSlide)
       ? (slide4Animation?.getPosterAlpha?.() ?? 0)
       : [5, 6, 7, 8].includes(state.posterSlide)
         ? 1
@@ -670,7 +709,7 @@ const sketch = (p) => {
 };
 
 function dispatchMouse(p, type) {
-  const anim = [4, 5, 9].includes(state.posterSlide) || isSlide3Slide9BgActive()
+  const anim = [4, 5, 9, 10].includes(state.posterSlide) || isSlide3Slide9BgActive()
     ? slide4Animation
     : currentAnimation;
   if (!anim) return;
@@ -689,7 +728,21 @@ function initAnimation() {
 
 function initSlide4Animation() {
   if (!p5Instance) return;
-  if ([7, 8, 9].includes(state.posterSlide) || isSlide3Slide9BgActive()) {
+  if (state.posterSlide === 10) {
+    if (
+      typeof ANIMATIONS_SLIDE4 === "undefined" ||
+      typeof ANIMATIONS_SLIDE7 === "undefined"
+    )
+      return;
+    const BgClass = ANIMATIONS_SLIDE7[state.anim.slide10BgAnim];
+    const HeroClass = ANIMATIONS_SLIDE4["pixel-explosion"];
+    if (!BgClass || !HeroClass) return;
+    slide4Animation = withSlide9PosterContext(
+      () => new BgClass(p5Instance, state),
+    );
+    slide10HeroAnimation = new HeroClass(p5Instance, state);
+  } else if ([7, 8, 9].includes(state.posterSlide) || isSlide3Slide9BgActive()) {
+    slide10HeroAnimation = null;
     if (typeof ANIMATIONS_SLIDE7 === "undefined") return;
     const AnimClass = ANIMATIONS_SLIDE7[state.anim.slide7Anim];
     if (!AnimClass) return;
@@ -697,10 +750,20 @@ function initSlide4Animation() {
       ? withSlide9PosterContext(() => new AnimClass(p5Instance, state))
       : new AnimClass(p5Instance, state);
   } else {
+    slide10HeroAnimation = null;
     if (typeof ANIMATIONS_SLIDE4 === "undefined") return;
     const AnimClass = ANIMATIONS_SLIDE4[state.anim.slide4Anim];
     if (!AnimClass) return;
     slide4Animation = new AnimClass(p5Instance, state);
+  }
+}
+
+function resetSlide4AnimationInstance() {
+  if (!slide4Animation) return;
+  if (state.posterSlide === 10) {
+    withSlide9PosterContext(() => slide4Animation.reset());
+  } else {
+    slide4Animation.reset();
   }
 }
 
@@ -986,7 +1049,7 @@ function drawLogos(p) {
    RENDER EDITORIAL
    ===================================================== */
 function drawEditorialContent(p) {
-  if (![4, 5, 6, 7, 8, 9].includes(state.posterSlide) && state.grid.show)
+  if (![4, 5, 6, 7, 8, 9, 10].includes(state.posterSlide) && state.grid.show)
     drawGrid(p);
   if (state.posterSlide === 0) {
     drawSlide0(p);
@@ -1692,6 +1755,9 @@ function _drawLogosAt(p, yBase, logoH) {
 }
 
 function drawSlide4Logos(p) {
+  // El slide 10 es un hero visual limpio: sin logos ni gradiente inferior.
+  if (state.posterSlide === 10) return;
+
   const mx = state.layout.marginX;
   const my = state.layout.marginY;
   const fg = state.preset.fg;
@@ -2422,13 +2488,13 @@ function drawBannerTitle(p) {
 }
 
 /* =====================================================
-   FORMATO — Cambio IG ↔ Banner
+   FORMATO — Cambio IG ↔ A5 ↔ Banner
    ===================================================== */
 function switchFormat(fmt) {
   if (fmt === state.format) return;
   state.format = fmt;
-  const w = fmt === "banner" ? BANNER_W : IG_W;
-  const h = fmt === "banner" ? BANNER_H : IG_H;
+  const w = fmt === "banner" ? BANNER_W : fmt === "a5" ? A5_W : IG_W;
+  const h = fmt === "banner" ? BANNER_H : fmt === "a5" ? A5_H : IG_H;
   setCanvasSize(w, h);
   if (p5Instance) p5Instance.resizeCanvas(w, h);
   state.meta.topLeft = `${w}×${h}`;
@@ -2917,7 +2983,11 @@ function buildWcagSwatches() {
   const container = document.getElementById("wcag-swatches");
   if (!container) return;
   container.innerHTML = "";
-  WCAG_PALETTES.forEach((palette) => {
+  const palettes =
+    state.posterSlide === 10
+      ? SLIDE10_PALETTES_DEF
+      : WCAG_PALETTES;
+  palettes.forEach((palette) => {
     const btn = document.createElement("button");
     btn.className = "wcag-swatch";
     btn.style.setProperty("--ws-bg", palette.bg);
@@ -2952,6 +3022,8 @@ function applyWcagPalette(palette) {
   ) {
     currentAnimation.reset();
   }
+  resetSlide4AnimationInstance();
+  if (slide10HeroAnimation) slide10HeroAnimation.reset();
 }
 
 function flashPicker(el) {
@@ -3013,6 +3085,8 @@ function syncControlsFromState() {
     "anim-select",
     mode === "slide45"
       ? state.anim.slide4Anim
+      : mode === "slide10"
+        ? state.anim.slide10BgAnim
       : mode === "slide7"
         ? state.anim.slide7Anim
         : state.anim.current,
@@ -3078,6 +3152,37 @@ function syncControlsFromState() {
   updateSlide3BackgroundControls();
   updateSlide8TypographyControls();
   updateSlide9LayoutControls();
+  updateSlide10Controls();
+}
+
+function updateSlide10Controls() {
+  const isSlide10 = state.posterSlide === 10;
+  const formatSelect = document.getElementById("format-select");
+  if (formatSelect) {
+    if (isSlide10) formatSelect.value = "a5";
+    formatSelect.disabled = isSlide10;
+    formatSelect.title = isSlide10 ? "El slide 10 usa formato A5 fijo" : "";
+  }
+
+  const extraLogos = document.getElementById("extra-logos-controls");
+  if (extraLogos) {
+    extraLogos.style.display =
+      state.format === "banner" || isSlide10 ? "none" : "";
+  }
+
+  const paletteLabel = document.getElementById("palette-section-label");
+  if (paletteLabel) {
+    paletteLabel.textContent = isSlide10
+      ? "Paletas fluor e invertidas"
+      : "Paletas accesibles (WCAG AA)";
+  }
+
+  const animationLabel = document.getElementById("animation-section-label");
+  if (animationLabel) {
+    animationLabel.textContent = isSlide10
+      ? "Animación de fondo"
+      : "Animación";
+  }
 }
 
 /* =====================================================
@@ -3141,7 +3246,7 @@ function applyColorPreset(id) {
 /* =====================================================
    SELECTOR DE ANIMACIONES DINÁMICO
    ===================================================== */
-// mode: 'slide45' | 'slide7' | 'poster'
+// mode: 'slide45' | 'slide10' | 'slide7' | 'poster'
 function rebuildAnimSelect(mode) {
   const select = document.getElementById("anim-select");
   if (!select) return;
@@ -3151,21 +3256,30 @@ function rebuildAnimSelect(mode) {
   const curAnimVal =
     mode === "slide45"
       ? state.anim.slide4Anim
-      : mode === "slide7"
-        ? state.anim.slide7Anim
-        : null;
+      : mode === "slide10"
+        ? state.anim.slide10BgAnim
+        : mode === "slide7"
+          ? state.anim.slide7Anim
+          : null;
   const pixelRow = document.getElementById("slide4-pixel-mode-row");
   if (pixelRow)
     pixelRow.style.display =
       isFullCanvas && curAnimVal === "pixel-explosion" ? "" : "none";
   updateSlide8TypographyControls();
-  const options = isFullCanvas ? ANIM_OPTIONS_SLIDE4 : ANIM_OPTIONS_POSTER;
+  const options =
+    mode === "slide10"
+      ? ANIM_OPTIONS_SLIDE4
+      : isFullCanvas
+        ? ANIM_OPTIONS_SLIDE4
+        : ANIM_OPTIONS_POSTER;
   const currentValue =
     mode === "slide45"
       ? state.anim.slide4Anim
-      : mode === "slide7"
-        ? state.anim.slide7Anim
-        : state.anim.current;
+      : mode === "slide10"
+        ? state.anim.slide10BgAnim
+        : mode === "slide7"
+          ? state.anim.slide7Anim
+          : state.anim.current;
   select.innerHTML = "";
   for (const opt of options) {
     const el = document.createElement("option");
@@ -3178,6 +3292,9 @@ function rebuildAnimSelect(mode) {
     select.value = options[0].value;
     if (mode === "slide45") {
       state.anim.slide4Anim = options[0].value;
+      initSlide4Animation();
+    } else if (mode === "slide10") {
+      state.anim.slide10BgAnim = options[0].value;
       initSlide4Animation();
     } else if (mode === "slide7") {
       state.anim.slide7Anim = options[0].value;
@@ -3446,7 +3563,7 @@ function resetSlide8AnimationMask() {
   if (!slide4Animation) return;
   slide4Animation._slide8GridReady = false;
   slide4Animation._slide8TextKey = null;
-  slide4Animation.reset();
+  resetSlide4AnimationInstance();
 }
 
 /* =====================================================
@@ -3484,6 +3601,10 @@ function bindControls() {
 
   // ——— Formato ———
   onChange("format-select", (e) => {
+    if (state.posterSlide === 10) {
+      e.target.value = "a5";
+      return;
+    }
     switchFormat(e.target.value);
     const isBanner = e.target.value === "banner";
     const bc = document.getElementById("banner-controls");
@@ -3503,6 +3624,27 @@ function bindControls() {
     const prev = state.posterSlide;
     state.posterSlide = Number(e.target.value);
 
+    if (state.posterSlide === 10) {
+      if (prev !== 10) {
+        formatBeforeSlide10 = state.format === "a5" ? "ig" : state.format;
+      }
+      switchFormat("a5");
+      const referenceBlue = SLIDE10_PALETTES_DEF.find(
+        (palette) => palette.name === "Azul referencia / blanco",
+      );
+      if (referenceBlue) applyWcagPalette(referenceBlue);
+    } else if (prev === 10) {
+      const restoredFormat = formatBeforeSlide10 || "ig";
+      switchFormat(restoredFormat);
+      formatBeforeSlide10 = null;
+
+      // Las primeras versiones del slide 10 compartían esta propiedad y
+      // podían reemplazar accidentalmente el Hero Visual del slide 4.
+      if (state.posterSlide === 4) {
+        state.anim.slide4Anim = "glitch-overload";
+      }
+    }
+
     // Determinar el modo de animación (Hero Visual vs Poster Estándar)
     const prevMode = getPosterAnimMode(prev);
     const curMode = getPosterAnimMode();
@@ -3512,13 +3654,14 @@ function bindControls() {
 
     // Gestionar la instancia de animación de capa superior (Slide 4/5/7)
     if (
-      [4, 5, 7, 8, 9].includes(state.posterSlide) ||
+      [4, 5, 7, 8, 9, 10].includes(state.posterSlide) ||
       isSlide3Slide9BgActive()
     ) {
       if (!slide4Animation || prevMode !== curMode || prev !== state.posterSlide)
         initSlide4Animation();
     } else {
       slide4Animation = null;
+      slide10HeroAnimation = null;
       if (currentAnimation) currentAnimation.reset();
     }
 
@@ -3534,6 +3677,8 @@ function bindControls() {
     updateSlide3BackgroundControls();
     updateSlide8TypographyControls();
     updateSlide9LayoutControls();
+    updateSlide10Controls();
+    buildWcagSwatches();
   });
 
   onCheck("extra-logos-toggle", (e) => {
@@ -3592,15 +3737,15 @@ function bindControls() {
   // ——— Slide 7 ———
   onInput("slide7-fecha-vieja", (e) => {
     state.slide7.fechaVieja = e.target.value;
-    if (slide4Animation) slide4Animation.reset();
+    resetSlide4AnimationInstance();
   });
   onInput("slide7-fecha-nueva", (e) => {
     state.slide7.fechaNueva = e.target.value;
-    if (slide4Animation) slide4Animation.reset();
+    resetSlide4AnimationInstance();
   });
   onInput("slide7-mes", (e) => {
     state.slide7.mes = e.target.value;
-    if (slide4Animation) slide4Animation.reset();
+    resetSlide4AnimationInstance();
   });
   slider("slide7-hold-old", "slide7-hold-old-val", (v) => {
     state.slide7.holdOld = v;
@@ -3811,6 +3956,10 @@ function bindControls() {
       if (pixelRow)
         pixelRow.style.display =
           e.target.value === "pixel-explosion" ? "" : "none";
+    } else if (state.posterSlide === 10) {
+      state.anim.slide10BgAnim = e.target.value;
+      initSlide4Animation();
+      if (pixelRow) pixelRow.style.display = "none";
     } else if (
       [7, 8, 9].includes(state.posterSlide) ||
       isSlide3Slide9BgActive()
@@ -3832,17 +3981,19 @@ function bindControls() {
   });
   onChange("anim-font", (e) => {
     state.anim.font = e.target.value;
-    const anim = getPosterAnimMode() !== "poster"
-      ? slide4Animation
-      : currentAnimation;
-    if (anim) anim.reset();
+    if (getPosterAnimMode() !== "poster") {
+      resetSlide4AnimationInstance();
+      if (slide10HeroAnimation) slide10HeroAnimation.reset();
+    } else if (currentAnimation) {
+      currentAnimation.reset();
+    }
   });
   slider(
     "slide4-leading",
     "slide4-leading-val",
     (v) => {
       state.anim.slide4Leading = v;
-      if ([4, 5].includes(state.posterSlide)) initSlide4Animation(); // leading only affects slide 4/5
+      if ([4, 5, 10].includes(state.posterSlide)) initSlide4Animation();
     },
     0.01,
     2,
@@ -3858,10 +4009,12 @@ function bindControls() {
   );
   slider("anim-text-size", "anim-text-size-val", (v) => {
     state.anim.textSize = Math.round(v);
-    const anim = getPosterAnimMode() !== "poster"
-      ? slide4Animation
-      : currentAnimation;
-    if (anim) anim.reset();
+    if (getPosterAnimMode() !== "poster") {
+      resetSlide4AnimationInstance();
+      if (slide10HeroAnimation) slide10HeroAnimation.reset();
+    } else if (currentAnimation) {
+      currentAnimation.reset();
+    }
   });
   onChange("anim-seed", (e) => {
     state.anim.seed = parseInt(e.target.value) || 0;
@@ -4125,7 +4278,7 @@ function exportSingleVideo(
 
     // Reiniciar animación desde el principio antes de grabar
     if (getPosterAnimMode() !== "poster") {
-      if (slide4Animation) slide4Animation.reset();
+      resetSlide4AnimationInstance();
     } else {
       if (currentAnimation) currentAnimation.reset();
     }
@@ -4187,6 +4340,23 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Filtrar paletas WCAG programáticamente (excluye cualquiera que no cumpla 4.5:1)
   WCAG_PALETTES = WCAG_PALETTES_DEF.filter((p) => meetsAA(p.bg, p.fg));
   restorePersistentState();
+  if (state.posterSlide === 4) {
+    state.anim.slide4Anim = "glitch-overload";
+    if (state.format === "a5") state.format = "ig";
+  }
+  if (state.posterSlide === 10) {
+    state.format = "a5";
+    setCanvasSize(A5_W, A5_H);
+  } else if (state.format === "a5") {
+    setCanvasSize(A5_W, A5_H);
+  } else if (state.format === "banner") {
+    setCanvasSize(BANNER_W, BANNER_H);
+  }
+  state.meta.topLeft = `${CANVAS_W}×${CANVAS_H}`;
+  const initialResBadge = document.getElementById("res-badge");
+  if (initialResBadge) {
+    initialResBadge.textContent = `${CANVAS_W} × ${CANVAS_H} px`;
+  }
   await restoreSlide9LayoutFiles();
   lastValidBg = state.preset.bg;
   lastValidFg = state.preset.fg;
