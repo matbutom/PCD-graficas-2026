@@ -142,6 +142,7 @@ const ANIM_OPTIONS_POSTER = [
 
 const ANIM_OPTIONS_SLIDE4 = [
   { value: "glitch-overload", label: "Glitch Overload" },
+  { value: "pixel-right-angles", label: "Pixel Right Angles" },
   { value: "pixel-explosion", label: "Pixel Explosion" },
   { value: "pixel-drift", label: "Pixel Drift" },
   { value: "scanline-pixels", label: "Scanline Pixels" },
@@ -258,6 +259,7 @@ const state = {
     slide4Leading: 0.74,
     slide4PixelMode: "multi",
     slide7Anim: "glitch-overload",
+    slide9Anim: "pixel-right-angles",
     slide10BgAnim: "pixel-drift",
     params: {
       "letter-physics": {
@@ -578,7 +580,8 @@ function isSlide3Slide9BgActive(slide = state.posterSlide) {
 function getPosterAnimMode(slide = state.posterSlide) {
   if (slide === 10) return "slide10";
   if ([4, 5].includes(slide)) return "slide45";
-  if ([7, 8, 9].includes(slide) || isSlide3Slide9BgActive(slide)) {
+  if (slide === 9 || isSlide3Slide9BgActive(slide)) return "slide9";
+  if ([7, 8].includes(slide)) {
     return "slide7";
   }
   return "poster";
@@ -744,7 +747,11 @@ function initSlide4Animation() {
   } else if ([7, 8, 9].includes(state.posterSlide) || isSlide3Slide9BgActive()) {
     slide10HeroAnimation = null;
     if (typeof ANIMATIONS_SLIDE7 === "undefined") return;
-    const AnimClass = ANIMATIONS_SLIDE7[state.anim.slide7Anim];
+    const animName =
+      state.posterSlide === 9 || isSlide3Slide9BgActive()
+        ? state.anim.slide9Anim
+        : state.anim.slide7Anim;
+    const AnimClass = ANIMATIONS_SLIDE7[animName];
     if (!AnimClass) return;
     slide4Animation = isSlide3Slide9BgActive()
       ? withSlide9PosterContext(() => new AnimClass(p5Instance, state))
@@ -3246,7 +3253,7 @@ function applyColorPreset(id) {
 /* =====================================================
    SELECTOR DE ANIMACIONES DINÁMICO
    ===================================================== */
-// mode: 'slide45' | 'slide10' | 'slide7' | 'poster'
+// mode: 'slide45' | 'slide10' | 'slide9' | 'slide7' | 'poster'
 function rebuildAnimSelect(mode) {
   const select = document.getElementById("anim-select");
   if (!select) return;
@@ -3258,9 +3265,11 @@ function rebuildAnimSelect(mode) {
       ? state.anim.slide4Anim
       : mode === "slide10"
         ? state.anim.slide10BgAnim
-        : mode === "slide7"
-          ? state.anim.slide7Anim
-          : null;
+        : mode === "slide9"
+          ? state.anim.slide9Anim
+          : mode === "slide7"
+            ? state.anim.slide7Anim
+            : null;
   const pixelRow = document.getElementById("slide4-pixel-mode-row");
   if (pixelRow)
     pixelRow.style.display =
@@ -3277,9 +3286,11 @@ function rebuildAnimSelect(mode) {
       ? state.anim.slide4Anim
       : mode === "slide10"
         ? state.anim.slide10BgAnim
-        : mode === "slide7"
-          ? state.anim.slide7Anim
-          : state.anim.current;
+        : mode === "slide9"
+          ? state.anim.slide9Anim
+          : mode === "slide7"
+            ? state.anim.slide7Anim
+            : state.anim.current;
   select.innerHTML = "";
   for (const opt of options) {
     const el = document.createElement("option");
@@ -3295,6 +3306,9 @@ function rebuildAnimSelect(mode) {
       initSlide4Animation();
     } else if (mode === "slide10") {
       state.anim.slide10BgAnim = options[0].value;
+      initSlide4Animation();
+    } else if (mode === "slide9") {
+      state.anim.slide9Anim = options[0].value;
       initSlide4Animation();
     } else if (mode === "slide7") {
       state.anim.slide7Anim = options[0].value;
@@ -3960,10 +3974,13 @@ function bindControls() {
       state.anim.slide10BgAnim = e.target.value;
       initSlide4Animation();
       if (pixelRow) pixelRow.style.display = "none";
-    } else if (
-      [7, 8, 9].includes(state.posterSlide) ||
-      isSlide3Slide9BgActive()
-    ) {
+    } else if (state.posterSlide === 9 || isSlide3Slide9BgActive()) {
+      state.anim.slide9Anim = e.target.value;
+      initSlide4Animation();
+      if (pixelRow)
+        pixelRow.style.display =
+          e.target.value === "pixel-explosion" ? "" : "none";
+    } else if ([7, 8].includes(state.posterSlide)) {
       state.anim.slide7Anim = e.target.value;
       initSlide4Animation();
       if (pixelRow)

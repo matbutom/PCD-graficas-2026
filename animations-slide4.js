@@ -1693,7 +1693,199 @@ class PixelDrift extends BaseAnimation {
 }
 
 /* =====================================================
-   6. SCANLINE PIXELS
+   6. PIXEL RIGHT ANGLES
+   Ángulos monumentales construidos con una retícula de cuadrados.
+   Alterna trazos huecos y rellenos, con deriva lenta y revelado por ondas.
+   ===================================================== */
+class PixelRightAngles extends BaseAnimation {
+  constructor(p, state) {
+    super(p, state);
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._cellSz = state.posterSlide === 9 ? 12 : 11;
+    this._gap = 1.5;
+    this._cols = Math.ceil(CANVAS_W / this._cellSz) + 2;
+    this._rows = Math.ceil(CANVAS_H / this._cellSz) + 2;
+    this._angles = [];
+    this._buildAngles();
+    p.noiseSeed(this.seed);
+  }
+
+  _buildAngles() {
+    const p = this.p;
+    const minDim = Math.min(CANVAS_W, CANVAS_H);
+    const bandsX = 4;
+    const bandsY = 3;
+    const angles = [];
+
+    p.randomSeed(this.seed);
+
+    // Una pieza por sector garantiza cobertura; el jitter evita una grilla rígida.
+    for (let row = 0; row < bandsY; row++) {
+      for (let col = 0; col < bandsX; col++) {
+        const index = row * bandsX + col;
+        const edgePushX =
+          col === 0 ? p.random(-0.16, -0.02) :
+          col === bandsX - 1 ? p.random(0.02, 0.16) :
+          p.random(-0.08, 0.08);
+        const edgePushY =
+          row === 0 ? p.random(-0.1, 0.03) :
+          row === bandsY - 1 ? p.random(0.02, 0.13) :
+          p.random(-0.08, 0.08);
+
+        angles.push({
+          x:
+            CANVAS_W * ((col + 0.5) / bandsX + edgePushX),
+          y:
+            CANVAS_H * ((row + 0.55) / bandsY + edgePushY),
+          rot: p.random(-0.56, -0.25),
+          armA: CANVAS_H * p.random(0.42, 0.72),
+          armB: CANVAS_W * p.random(0.3, 0.52),
+          thick: minDim * p.random(0.08, 0.155),
+          outline: index % 2 === 0 ? p.random() > 0.25 : p.random() > 0.68,
+          phase: p.random(0, Math.PI * 2),
+        });
+      }
+    }
+
+    // Piezas extra parcialmente fuera del canvas para cerrar huecos en los bordes.
+    const edgeAnchors = [
+      [-0.12, p.random(0.25, 0.9)],
+      [1.12, p.random(0.25, 0.9)],
+      [p.random(0.15, 0.85), -0.08],
+      [p.random(0.15, 0.85), 1.1],
+    ];
+    edgeAnchors.forEach(([x, y], index) => {
+      angles.push({
+        x: CANVAS_W * x,
+        y: CANVAS_H * y,
+        rot: p.random(-0.58, -0.22),
+        armA: CANVAS_H * p.random(0.4, 0.66),
+        armB: CANVAS_W * p.random(0.34, 0.5),
+        thick: minDim * p.random(0.075, 0.135),
+        outline: index % 2 === 0,
+        phase: p.random(0, Math.PI * 2),
+      });
+    });
+
+    this._angles = angles;
+  }
+
+  advanceState() {
+    if (this.state.playing) this._frame++;
+  }
+
+  _insideAngle(lx, ly, armA, armB, thickness) {
+    const vertical =
+      lx >= -thickness && lx <= 0 && ly >= -armA && ly <= 0;
+    const horizontal =
+      lx >= -thickness && lx <= armB && ly >= -thickness && ly <= 0;
+    return vertical || horizontal;
+  }
+
+  _insideInnerAngle(lx, ly, armA, armB, thickness, border) {
+    const inner = Math.max(2, thickness - border * 2);
+    return this._insideAngle(
+      lx + border,
+      ly + border,
+      Math.max(2, armA - border * 2),
+      Math.max(2, armB - border * 2),
+      inner,
+    );
+  }
+
+  render() {
+    const p = this.p;
+    const ctx = p.drawingContext;
+    const [fR, fG, fB] = this.getFg();
+    const speed = Math.max(0.2, this.state.anim?.speed || 2);
+    const t = this._frame * 0.006 * speed;
+    const cell = this._cellSz;
+    const gap = this._gap;
+    const angles = this._angles;
+
+    ctx.save();
+    for (let r = -1; r < this._rows; r++) {
+      const cy = r * cell + cell * 0.5;
+      for (let c = -1; c < this._cols; c++) {
+        const cx = c * cell + cell * 0.5;
+
+        for (let i = 0; i < angles.length; i++) {
+          const a = angles[i];
+          const driftX = Math.sin(t * 0.72 + a.phase) * cell * 3.5;
+          const driftY =
+            Math.cos(t * 0.54 + a.phase * 0.8) * cell * 4.5 +
+            Math.sin(t * 0.18 + a.phase) * CANVAS_H * 0.018;
+          const rot = a.rot + Math.sin(t * 0.22 + a.phase) * 0.018;
+          const cos = Math.cos(rot);
+          const sin = Math.sin(rot);
+          const dx = cx - (a.x + driftX);
+          const dy = cy - (a.y + driftY);
+          const lx = dx * cos + dy * sin;
+          const ly = -dx * sin + dy * cos;
+
+          if (!this._insideAngle(lx, ly, a.armA, a.armB, a.thick)) {
+            continue;
+          }
+
+          if (
+            a.outline &&
+            this._insideInnerAngle(lx, ly, a.armA, a.armB, a.thick, cell * 1.35)
+          ) {
+            continue;
+          }
+
+          const progress =
+            (lx - ly + a.armA + Math.sin(t + a.phase) * cell * 5) /
+            (a.armA + a.armB);
+          const reveal = 0.5 + 0.5 * Math.sin(progress * 9 - t * 4 + a.phase);
+          const noise = p.noise(
+            c * 0.11 + i * 7,
+            r * 0.11,
+            this.seed + t * 0.12,
+          );
+          const cut =
+            ((c * 13 + r * 7 + i * 5 + Math.floor(t * 8)) % 43 === 0) ||
+            (reveal < 0.035 && noise < 0.4);
+          if (cut) continue;
+
+          const alpha = a.outline
+            ? 0.68 + noise * 0.28
+            : 0.34 + reveal * 0.48 + noise * 0.12;
+          ctx.fillStyle = slide9PaletteFillStyle(
+            this.state,
+            [fR, fG, fB],
+            i * 101 + c * 7 + r * 17,
+            Math.min(0.68, alpha * 0.7),
+          );
+          ctx.fillRect(
+            c * cell + gap,
+            r * cell + gap,
+            cell - gap * 2,
+            cell - gap * 2,
+          );
+          break;
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  getPosterAlpha() {
+    return 0;
+  }
+  handleMouse() {}
+  reset() {
+    this.seed = Math.random() * 99999;
+    this._frame = 0;
+    this._buildAngles();
+    this.p.noiseSeed(this.seed);
+  }
+  setParams() {}
+}
+
+/* =====================================================
+   7. SCANLINE PIXELS
    Barridos horizontales de bloques pixelados con cortes glitch.
    Fondo puro para slide 9 y compatible con el selector full-canvas.
    ===================================================== */
@@ -3284,6 +3476,7 @@ class WovenCodeNoise extends BaseAnimation {
    ===================================================== */
 const ANIMATIONS_SLIDE4 = {
   "glitch-overload": GlitchOverload,
+  "pixel-right-angles": PixelRightAngles,
   "pixel-explosion": PixelExplosion,
   "pixel-drift": PixelDrift,
   "scanline-pixels": ScanlinePixels,
@@ -3312,6 +3505,7 @@ const ANIMATIONS_SLIDE4 = {
    ===================================================== */
 const ANIMATIONS_SLIDE7 = {
   "glitch-overload": GlitchOverload, // Cambiado para usar el Hero Visual
+  "pixel-right-angles": PixelRightAngles,
   "pixel-explosion": PixelExplosion, // Cambiado para usar el Hero Visual
   "pixel-drift": PixelDrift,
   "scanline-pixels": ScanlinePixels,
