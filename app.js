@@ -9,6 +9,8 @@ const IG_W = 1080;
 const IG_H = 1350;
 const A5_W = 1748;
 const A5_H = 2480;
+const SLIDE11_W = 1000;
+const SLIDE11_H = 1700;
 const BANNER_W = 1600;
 const BANNER_H = 400;
 const BANNER_SPLIT = 800; // x split: left text panel | right pixel grid
@@ -124,6 +126,39 @@ const INFO_LINES = [
   "Fecha cierre convocatoria: 12 Mayo 2026",
 ];
 
+const SLIDE11_TITLE = "PROCESSING COMMUNITY DAY 2026";
+const SLIDE11_DESCRIPTION =
+  "Dos días de programación creativa, interacción digital, charlas, clínicas y exhibición de proyectos. El encuentro entre comunidad, academia e industria creativa.";
+const SLIDE11_DATES = ["26.06.2026", "27.06.2026"];
+const SLIDE11_PEOPLE = [
+  "Mónica Bate",
+  "Aarón Montoya-Moraga",
+  "Design Systems International",
+  "CumaSystem",
+  "ShuffleShuffle",
+  "voodoochild/:",
+];
+const SLIDE11_PROJECTS = [
+  "VI(H)SIBLES",
+  "Retratos en el Viento",
+  "Antes todo esto era campo",
+  "Relaciones tecno-humanas: la televisión de mi abuelita",
+  "Frontera invisible",
+  "Gustavo Lita",
+  "inter/ferencia",
+  "Avarion",
+  "La Odisea de una AI",
+  "W.E.B.O",
+  "MAL DE OJO",
+  "APRUEBO",
+  "reiteración",
+  "La máquina asombrosa",
+  "THE ROAD",
+  "Umbral",
+  "Tres Señales / Three Signals",
+  "Quaternions Series",
+];
+
 const ANIM_OPTIONS_POSTER = [
   { value: "letter-physics", label: "Letter Physics" },
   { value: "particle-network", label: "Particle Network" },
@@ -164,6 +199,19 @@ const ANIM_OPTIONS_SLIDE4 = [
   { value: "moire-pixel-static", label: "Moiré Pixel Static" },
   { value: "eroded-pixel-paper", label: "Eroded Pixel Paper" },
   { value: "woven-code-noise", label: "Woven Code Noise" },
+];
+
+const ANIM_OPTIONS_SLIDE11 = [
+  { value: "ascii-zine-poster", label: "ASCII Zine Poster" },
+  { value: "bitmap-fragments", label: "Bitmap Fragments" },
+  { value: "call-strip-stairs", label: "Call Strip Stairs" },
+  { value: "vertical-glyph-walls", label: "Vertical Glyph Walls" },
+  { value: "moire-research-field", label: "Moiré Research Field" },
+  { value: "neon-atlas-blocks", label: "Neon Atlas Blocks" },
+  { value: "modular-poster-tiles", label: "Modular Poster Tiles" },
+  { value: "symmetric-weave", label: "Symmetric Weave" },
+  { value: "topographic-halftone", label: "Topographic Halftone" },
+  { value: "ascii-checker-field", label: "ASCII Checker Field" },
 ];
 
 const PROJECT_CATEGORIES = [
@@ -261,6 +309,7 @@ const state = {
     slide7Anim: "glitch-overload",
     slide9Anim: "pixel-right-angles",
     slide10BgAnim: "pixel-drift",
+    slide11Anim: "ascii-zine-poster",
     params: {
       "letter-physics": {
         text: "CONVOCATORIA ABIERTA",
@@ -372,6 +421,10 @@ const state = {
     layouts: [],
     activeLayoutIndex: 0,
     tintAnimations: false,
+  },
+
+  slide10: {
+    showHero: true,
   },
 };
 
@@ -579,6 +632,7 @@ function isSlide3Slide9BgActive(slide = state.posterSlide) {
 
 function getPosterAnimMode(slide = state.posterSlide) {
   if (slide === 10) return "slide10";
+  if (slide === 11) return "slide11";
   if ([4, 5].includes(slide)) return "slide45";
   if (slide === 9 || isSlide3Slide9BgActive(slide)) return "slide9";
   if ([7, 8].includes(slide)) {
@@ -642,7 +696,11 @@ const sketch = (p) => {
         p.drawingContext.globalAlpha = 1;
         p.pop();
       }
-      if (state.posterSlide === 10 && slide10HeroAnimation) {
+      if (
+        state.posterSlide === 10 &&
+        state.slide10.showHero &&
+        slide10HeroAnimation
+      ) {
         p.push();
         slide10HeroAnimation.draw();
         p.pop();
@@ -669,7 +727,7 @@ const sketch = (p) => {
       ? (slide4Animation?.getPosterAlpha?.() ?? 0)
       : [5, 6, 7, 8].includes(state.posterSlide)
         ? 1
-        : state.posterSlide === 9 || isSlide3Slide9BgActive()
+        : state.posterSlide === 9 || state.posterSlide === 11 || isSlide3Slide9BgActive()
           ? 1
           : (currentAnimation?.getPosterAlpha?.() ?? 1);
     if (posterAlpha > 0.004) {
@@ -743,6 +801,13 @@ function initSlide4Animation() {
     slide4Animation = withSlide9PosterContext(
       () => new BgClass(p5Instance, state),
     );
+    slide4Animation._isSlide10Background = true;
+    if (slide4Animation instanceof ANIMATIONS_SLIDE7["pixel-drift"]) {
+      slide4Animation._cellSz = 72;
+      slide4Animation._cols = Math.ceil(CANVAS_W / slide4Animation._cellSz);
+      slide4Animation._rows = Math.ceil(CANVAS_H / slide4Animation._cellSz);
+      slide4Animation.reset();
+    }
     slide10HeroAnimation = new HeroClass(p5Instance, state);
   } else if ([7, 8, 9].includes(state.posterSlide) || isSlide3Slide9BgActive()) {
     slide10HeroAnimation = null;
@@ -1056,7 +1121,7 @@ function drawLogos(p) {
    RENDER EDITORIAL
    ===================================================== */
 function drawEditorialContent(p) {
-  if (![4, 5, 6, 7, 8, 9, 10].includes(state.posterSlide) && state.grid.show)
+  if (![4, 5, 6, 7, 8, 9, 10, 11].includes(state.posterSlide) && state.grid.show)
     drawGrid(p);
   if (state.posterSlide === 0) {
     drawSlide0(p);
@@ -1078,6 +1143,8 @@ function drawEditorialContent(p) {
     drawSlide8(p);
   } else if (state.posterSlide === 9) {
     drawSlide9(p);
+  } else if (state.posterSlide === 11) {
+    drawSlide11(p);
   }
   if (state.showGuides) drawGuides(p);
 }
@@ -2258,6 +2325,1186 @@ function drawSlide9(p) {
   p.pop();
 }
 
+/* =====================================================
+   SLIDE 11 — PIXEL VERTICAL 100×170
+   ===================================================== */
+function drawSlide11(p) {
+  const ctx = p.drawingContext;
+  const bg = hexRgb(state.preset.bg);
+  const fg = hexRgb(state.preset.fg);
+  const fgIsLight = slide11RgbLum(fg) > 225;
+  const tone = (amt) => mixRgb(bg, fg, amt);
+  const colors = {
+    bg,
+    fg,
+    mid: tone(fgIsLight ? 0.62 : 0.68),
+    pale: tone(fgIsLight ? 0.82 : 0.86),
+    soft: tone(fgIsLight ? 0.36 : 0.46),
+    strong: fg,
+  };
+  const t = p.frameCount * 0.018 * (state.anim.speed || 1);
+  const u = Math.min(CANVAS_W, CANVAS_H) / 1000;
+  const px = Math.max(8, Math.round(18 * u));
+
+  p.push();
+  p.noStroke();
+  const effect = state.anim.slide11Anim || "bitmap-fragments";
+  if (effect === "ascii-zine-poster") {
+    drawSlide11AsciiZinePoster(ctx, colors, t, px);
+  } else if (effect === "call-strip-stairs") {
+    drawSlide11CallStripStairs(ctx, colors, t, px);
+  } else if (effect === "vertical-glyph-walls") {
+    drawSlide11VerticalGlyphWalls(ctx, colors, t, px);
+  } else if (effect === "moire-research-field") {
+    drawSlide11MoireResearchField(ctx, colors, t, px);
+  } else if (effect === "neon-atlas-blocks") {
+    drawSlide11NeonAtlasBlocks(ctx, colors, t, px);
+  } else if (effect === "modular-poster-tiles") {
+    drawSlide11ModularPosterTiles(ctx, colors, t, px);
+  } else if (effect === "symmetric-weave") {
+    drawSlide11SymmetricWeave(ctx, colors, t, px);
+  } else if (effect === "topographic-halftone") {
+    drawSlide11TopographicHalftone(ctx, colors, t, px);
+  } else if (effect === "ascii-checker-field") {
+    drawSlide11AsciiCheckerField(ctx, colors, t, px);
+  } else {
+    drawSlide11BitmapFragments(ctx, colors, t, px);
+  }
+  if (effect !== "ascii-zine-poster") {
+    drawSlide11EditorialOverlay(ctx, colors, t, px);
+  }
+  p.pop();
+}
+
+function drawSlide11BitmapFragments(ctx, colors, t, px) {
+  const { bg, fg, mid, pale, strong } = colors;
+  const cell = Math.max(7, px * 0.58);
+  const cols = Math.ceil(CANVAS_W / cell);
+  const rows = Math.ceil(CANVAS_H / cell);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const flow =
+        Math.sin(c * 0.17 + t * 1.2) +
+        Math.cos(r * 0.13 - t * 0.9) +
+        Math.sin((c + r) * 0.055 + t * 1.6);
+      const grain = slide11Hash(c, r, 11 + Math.floor(t * 5));
+      const rgb = flow + grain * 1.4 > 0.72
+        ? fg
+        : flow - grain > 0.2
+          ? strong
+          : flow > -0.55
+            ? mid
+            : bg;
+      fillRgb(ctx, rgb, 1);
+      const x = c * cell + Math.sin(r * 0.21 + t) * cell * 0.18;
+      const y = r * cell + Math.cos(c * 0.19 - t) * cell * 0.18;
+      const shrink = grain > 0.72 ? 0.18 : grain > 0.48 ? 0.08 : 0;
+      ctx.fillRect(x, y, cell * (1 - shrink) + 0.6, cell * (1 - shrink) + 0.6);
+    }
+  }
+  drawSlide11OrganicVeins(ctx, pale, bg, t, px, 9, 0.34);
+}
+
+function drawSlide11CallStripStairs(ctx, colors, t, px) {
+  const { bg, fg, mid, pale, soft, strong } = colors;
+  const cell = Math.max(10, px * 0.95);
+  const cols = Math.ceil(CANVAS_W / cell);
+  const rows = Math.ceil(CANVAS_H / cell);
+  for (let c = 0; c < cols; c++) {
+    const band = Math.sin(c * 0.68 + t * 1.1);
+    const rgb = band > 0.42 ? pale : band > -0.15 ? soft : bg;
+    fillRgb(ctx, rgb, 1);
+    ctx.fillRect(c * cell, 0, cell + 0.5, CANVAS_H);
+  }
+  for (let r = -4; r < rows + 8; r++) {
+    for (let c = -4; c < cols + 4; c++) {
+      const river =
+        r -
+        c * 1.35 -
+        Math.sin(c * 0.36 + t * 1.7) * 5 -
+        Math.cos(r * 0.19 - t) * 3;
+      const near = Math.abs(river % 15);
+      if (near < 4.2 || near > 13.4) {
+        const x = c * cell + Math.sin(r * 0.33 + t) * cell * 0.25;
+        const y = r * cell;
+        const n = slide11Hash(c, r, 24 + Math.floor(t * 4));
+        const rgb = n > 0.76 ? strong : n > 0.5 ? fg : mid;
+        fillRgb(ctx, rgb, 1);
+        ctx.fillRect(x, y, cell * (1.1 + n * 0.25), cell * 0.9);
+      }
+    }
+  }
+  drawSlide11OrganicVeins(ctx, fg, bg, t + 3, px, 7, 0.18);
+}
+
+function drawSlide11VerticalGlyphWalls(ctx, colors, t, px) {
+  const { bg, fg, mid, pale, strong } = colors;
+  const cell = Math.max(8, px * 0.62);
+  const cols = Math.ceil(CANVAS_W / cell);
+  const rows = Math.ceil(CANVAS_H / cell);
+  for (let c = 0; c < cols; c++) {
+    const base = Math.sin(c * 0.22 + t * 0.8);
+    for (let r = 0; r < rows; r++) {
+      const warp = Math.sin(r * 0.11 + c * 0.19 + t * 1.4);
+      const cavity = Math.sin((c - cols * 0.38) * 0.09) + Math.cos((r - rows * 0.42) * 0.12 + t);
+      const n = slide11Hash(c, r, 37 + Math.floor(t * 3));
+      const rgb = cavity > 1.0
+        ? bg
+        : base + warp + n > 0.95
+          ? pale
+          : base + warp > 0.15
+            ? fg
+            : mid;
+      fillRgb(ctx, rgb, 1);
+      const w = cell * (0.32 + Math.abs(warp) * 0.64);
+      const x = c * cell + Math.sin(r * 0.18 + t) * cell * 0.24;
+      ctx.fillRect(x, r * cell, Math.max(2, w), cell + 0.7);
+      if (n > 0.9) {
+        fillRgb(ctx, strong, 1);
+        ctx.fillRect(x + w * 0.55, r * cell, cell * 0.2, cell);
+      }
+    }
+  }
+}
+
+function drawSlide11MoireResearchField(ctx, colors, t, px) {
+  const { bg, fg, mid, pale, strong } = colors;
+  const cell = Math.max(5, px * 0.34);
+  const cols = Math.ceil(CANVAS_W / cell);
+  const rows = Math.ceil(CANVAS_H / cell);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const waveA = Math.sin(c * 0.48 + r * 0.1 + t * 2.1);
+      const waveB = Math.cos(c * 0.08 - r * 0.42 + t * 1.4);
+      const mask = Math.sin(c * 0.03 + r * 0.07 + t * 0.7);
+      const x = c * cell + waveB * cell * 0.28;
+      const y = r * cell + waveA * cell * 0.2;
+      const rgb = mask + waveA > 0.58
+        ? fg
+        : waveB > 0.64
+          ? strong
+          : mask > -0.15
+            ? mid
+            : bg;
+      fillRgb(ctx, rgb, 1);
+      ctx.fillRect(x, y, cell * (0.45 + Math.abs(waveA) * 0.75), cell * (0.22 + Math.abs(waveB) * 0.85));
+    }
+  }
+  drawSlide11OrganicVeins(ctx, pale, bg, t + 7, px, 12, 0.12);
+}
+
+function drawSlide11NeonAtlasBlocks(ctx, colors, t, px) {
+  const { bg, fg, mid, pale, soft, strong } = colors;
+  const cell = Math.max(11, px * 0.95);
+  const cols = Math.ceil(CANVAS_W / cell);
+  const rows = Math.ceil(CANVAS_H / cell);
+  fillRgb(ctx, soft, 1);
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  for (let r = -2; r < rows + 2; r++) {
+    for (let c = -2; c < cols + 2; c++) {
+      const contour =
+        Math.sin(c * 0.2 + t * 0.8) +
+        Math.cos(r * 0.21 - t * 0.6) +
+        Math.sin((c - r) * 0.13 + t);
+      const n = slide11Hash(c, r, 53);
+      if (contour + n * 1.1 < -0.38) continue;
+      const rgb = contour > 1.3
+        ? fg
+        : n > 0.76
+          ? pale
+          : contour > 0.35
+            ? strong
+            : bg;
+      fillRgb(ctx, rgb, 1);
+      const jitterX = Math.sin(r * 0.37 + t * 1.2) * cell * 0.22;
+      const jitterY = Math.cos(c * 0.31 - t) * cell * 0.22;
+      ctx.fillRect(c * cell + jitterX, r * cell + jitterY, cell * (1.05 + n * 0.24), cell * (1.05 + (1 - n) * 0.18));
+    }
+  }
+  drawSlide11OrganicVeins(ctx, mid, fg, t, px, 8, 0.22);
+}
+
+function drawSlide11ModularPosterTiles(ctx, colors, t, px) {
+  const { bg, fg, mid, pale, soft, strong } = colors;
+  const tile = CANVAS_W / 17;
+  const cols = Math.ceil(CANVAS_W / tile);
+  const rows = Math.ceil(CANVAS_H / tile);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const bend = Math.sin(c * 0.72 + t) + Math.cos(r * 0.42 - t * 1.3);
+      const n = slide11Hash(c, r, 71 + Math.floor(t * 2));
+      const rgb = bend + n > 1.25
+        ? fg
+        : bend > 0.42
+          ? pale
+          : n > 0.62
+            ? mid
+            : bg;
+      fillRgb(ctx, rgb, 1);
+      const x = c * tile + Math.sin(r * 0.29 + t) * tile * 0.15;
+      const y = r * tile + Math.cos(c * 0.23 - t) * tile * 0.15;
+      ctx.fillRect(x, y, tile + 0.8, tile + 0.8);
+      if (n > 0.83 || Math.abs(bend) < 0.16) {
+        fillRgb(ctx, n > 0.9 ? strong : soft, 1);
+        ctx.fillRect(x, y, tile * (n > 0.9 ? 0.36 : 0.58), tile + 0.8);
+      }
+    }
+  }
+  drawSlide11OrganicVeins(ctx, fg, bg, t + 2, px, 6, 0.16);
+}
+
+function drawSlide11SymmetricWeave(ctx, colors, t, px) {
+  const contrast = colors.fg;
+  const base = colors.bg;
+  const deepTone = colors.strong;
+  const mistTone = colors.mid;
+  const brightTone = colors.pale;
+  const cell = Math.max(14, Math.round(px * 1.05));
+  const cols = Math.ceil(CANVAS_W / cell);
+  const rows = Math.ceil(CANVAS_H / cell);
+  const halfCols = Math.ceil(cols / 2);
+  const cx = (cols - 1) / 2;
+
+  fillRgb(ctx, base, 1);
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  for (let r = -1; r <= rows; r++) {
+    for (let c = 0; c < halfCols; c++) {
+      const dist = Math.abs(c - cx * 0.5);
+      const diagonalA = Math.abs(((r + c + Math.floor(t * 1.3)) % 13) - 6);
+      const diagonalB = Math.abs(((r - c + Math.floor(t * 1.1)) % 17) - 8);
+      const diamond =
+        Math.abs((c - halfCols * 0.5) * 0.85) +
+        Math.abs(((r % 22) - 11) * 0.48);
+      const hash = slide11Hash(c, r, 93);
+      const pulse = Math.sin(t * 2.2 + r * 0.22 + c * 0.47);
+      const active =
+        diagonalA < 2.1 ||
+        diagonalB < 2.4 ||
+        (diamond > 5.2 && diamond < 8.1) ||
+        (hash > 0.78 && pulse > -0.2);
+      if (!active) continue;
+
+      const layer =
+        pulse > 0.86 || (hash > 0.9 && diagonalA < 2.4)
+          ? brightTone
+          : hash > 0.82 || pulse > 0.72
+            ? contrast
+            : hash > 0.52
+              ? mistTone
+              : deepTone;
+      const alpha =
+        layer === brightTone
+          ? 0.72
+          : layer === contrast
+            ? 0.62
+            : layer === mistTone
+              ? 0.42
+              : 0.56;
+      const y = r * cell;
+      const leftX = c * cell;
+      const rightX = (cols - 1 - c) * cell;
+      fillRgb(ctx, layer, alpha);
+      ctx.fillRect(leftX, y, cell, cell);
+      ctx.fillRect(rightX, y, cell, cell);
+
+      if ((diagonalA < 1.2 || diagonalB < 1.2) && r % 3 !== 0) {
+        fillRgb(ctx, contrast, 0.22);
+        const inset = Math.round(cell * 0.22);
+        ctx.fillRect(leftX + inset, y + inset, cell - inset * 2, cell - inset * 2);
+        ctx.fillRect(rightX + inset, y + inset, cell - inset * 2, cell - inset * 2);
+      }
+      if (dist < 2.2 && r % 4 === 0) {
+        fillRgb(ctx, brightTone, 0.62);
+        ctx.fillRect(leftX, y, cell, cell);
+        ctx.fillRect(rightX, y, cell, cell);
+      }
+    }
+  }
+
+  for (let r = 0; r < rows; r += 5) {
+    fillRgb(ctx, contrast, 0.16);
+    const y = r * cell + Math.round(Math.sin(t + r) * cell);
+    for (let c = 1; c < cols; c += 4) {
+      ctx.fillRect(c * cell, y, cell, cell);
+    }
+  }
+
+  fillRgb(ctx, brightTone, 0.32);
+  for (let r = 2; r < rows; r += 9) {
+    const y = r * cell;
+    for (let c = 0; c < halfCols; c += 5) {
+      const shimmer = Math.sin(t * 2.6 + r * 0.5 + c) > 0.35;
+      if (!shimmer) continue;
+      const leftX = c * cell;
+      const rightX = (cols - 1 - c) * cell;
+      ctx.fillRect(leftX, y, cell, cell);
+      ctx.fillRect(rightX, y, cell, cell);
+    }
+  }
+}
+
+function drawSlide11TopographicHalftone(ctx, colors, t, px) {
+  const paper = colors.bg;
+  const accent = colors.fg;
+  const deepAccent = colors.strong;
+  const mutedAccent = colors.mid;
+  const paleAccent = colors.pale;
+  const softAccent = colors.soft;
+  fillRgb(ctx, paper, 1);
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  const bands = [
+    { y: -0.08, h: 0.24, color: deepAccent, mode: "dots", amp: 0.045, alpha: 0.58 },
+    { y: 0.11, h: 0.19, color: accent, mode: "solid", amp: 0.035, alpha: 0.62 },
+    { y: 0.27, h: 0.2, color: mutedAccent, mode: "hatch", amp: 0.05, alpha: 0.58 },
+    { y: 0.43, h: 0.2, color: accent, mode: "solid", amp: 0.038, alpha: 0.52 },
+    { y: 0.57, h: 0.23, color: deepAccent, mode: "cross", amp: 0.046, alpha: 0.48 },
+    { y: 0.74, h: 0.34, color: paleAccent, mode: "rings", amp: 0.04, alpha: 0.42 },
+  ];
+
+  for (let i = 0; i < bands.length; i++) {
+    drawSlide11TopoBand(ctx, bands[i], i, t, px);
+  }
+
+  drawSlide11TopoHatch(ctx, CANVAS_H * 0.26, CANVAS_H * 0.24, mutedAccent, t, px, -1, 0.46);
+  drawSlide11TopoHatch(ctx, CANVAS_H * 0.74, CANVAS_H * 0.24, accent, t + 3, px, 1, 0.32);
+  drawSlide11TopoDotMist(ctx, softAccent, t, px);
+}
+
+function drawSlide11TopoBand(ctx, band, index, t, px) {
+  const step = Math.max(18, px * 1.25);
+  const top = CANVAS_H * band.y;
+  const h = CANVAS_H * band.h;
+  const cols = Math.ceil(CANVAS_W / step) + 2;
+  const rows = Math.ceil(h / step) + 4;
+  const scroll = ((t * step * (0.22 + index * 0.035)) % step) - step;
+
+  for (let r = -2; r < rows; r++) {
+    for (let c = -1; c < cols; c++) {
+      const x = c * step + scroll;
+      const wave =
+        Math.sin(c * 0.19 + t * 0.7 + index) * CANVAS_H * band.amp +
+        Math.cos(c * 0.071 - t * 0.9 + index * 2) * CANVAS_H * band.amp * 0.55;
+      const y =
+        top +
+        r * step +
+        wave +
+        Math.sin(r * 0.63 + t) * step * 0.16 +
+        Math.sin(t * 1.25 + index) * step * 0.55;
+      const ragged = slide11Hash(c, r, 120 + index + Math.floor(t * 2));
+      const shimmer = 0.76 + Math.sin(t * 2.4 + c * 0.41 + r * 0.27 + index) * 0.24;
+      if (ragged < 0.08 && (r === 0 || r > rows - 3)) continue;
+
+      if (band.mode === "dots") {
+        fillRgb(ctx, band.color, band.alpha * (0.65 + ragged * 0.35) * shimmer);
+        ctx.beginPath();
+        ctx.arc(x + step * 0.5, y + step * 0.5, step * (0.2 + ragged * 0.13), 0, Math.PI * 2);
+        ctx.fill();
+      } else if (band.mode === "hatch") {
+        fillRgb(ctx, band.color, band.alpha * shimmer);
+        ctx.fillRect(x, y, step, step);
+        strokeRgb(ctx, band.color, 0.36);
+        ctx.lineWidth = Math.max(1, step * 0.12);
+        ctx.beginPath();
+        ctx.moveTo(x - step * 0.2, y + step);
+        ctx.lineTo(x + step, y - step * 0.2);
+        ctx.stroke();
+      } else if (band.mode === "cross") {
+        fillRgb(ctx, band.color, band.alpha * 0.42 * shimmer);
+        ctx.fillRect(x, y, step, step);
+        strokeRgb(ctx, band.color, band.alpha * shimmer);
+        ctx.lineWidth = Math.max(1, step * 0.08);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + step, y + step);
+        ctx.moveTo(x + step, y);
+        ctx.lineTo(x, y + step);
+        ctx.stroke();
+      } else if (band.mode === "rings") {
+        strokeRgb(ctx, band.color, band.alpha * shimmer);
+        ctx.lineWidth = Math.max(1, step * 0.08);
+        ctx.beginPath();
+        ctx.arc(x + step * 0.5, y + step * 0.5, step * 0.28, 0, Math.PI * 2);
+        ctx.stroke();
+        if (ragged > 0.56) {
+          ctx.beginPath();
+          ctx.arc(x + step * 0.5, y + step * 0.5, step * 0.13, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      } else {
+        fillRgb(ctx, band.color, band.alpha * (0.72 + ragged * 0.24) * shimmer);
+        ctx.fillRect(x, y, step + 0.5, step + 0.5);
+      }
+    }
+  }
+}
+
+function drawSlide11TopoHatch(ctx, y, h, color, t, px, dir, alpha) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, y, CANVAS_W, h);
+  ctx.clip();
+  strokeRgb(ctx, color, alpha);
+  ctx.lineWidth = Math.max(1, px * 0.11);
+  const gap = px * 1.45;
+  const drift = (t * px * 2.2) % gap;
+  for (let x = -CANVAS_H; x < CANVAS_W + CANVAS_H; x += gap) {
+    ctx.beginPath();
+    if (dir > 0) {
+      ctx.moveTo(x + drift, y + h);
+      ctx.lineTo(x + h + drift, y);
+    } else {
+      ctx.moveTo(x + drift, y);
+      ctx.lineTo(x + h + drift, y + h);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawSlide11TopoDotMist(ctx, color, t, px) {
+  const step = Math.max(18, px * 1.15);
+  fillRgb(ctx, color, 0.18);
+  for (let r = 0; r < CANVAS_H / step; r++) {
+    for (let c = 0; c < CANVAS_W / step; c++) {
+      const n =
+        Math.sin(c * 0.18 + r * 0.22 + t * 2.4) +
+        slide11Hash(c, r, 160 + Math.floor(t * 3));
+      if (n < 1.08) continue;
+      ctx.beginPath();
+      ctx.arc(c * step, r * step, step * 0.11, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+function drawSlide11AsciiCheckerField(ctx, colors, t, px) {
+  const paper = colors.bg;
+  const ink = colors.fg;
+  const inkSoft = colors.fg;
+  fillRgb(ctx, paper, 1);
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  const cell = Math.max(34, Math.round(px * 1.95));
+  const cols = Math.ceil(CANVAS_W / cell);
+  const rows = Math.ceil(CANVAS_H / cell);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 ${Math.round(cell * 1.18)}px 'Space Mono', monospace`;
+
+  for (let r = -1; r < rows + 1; r++) {
+    for (let c = -1; c < cols + 1; c++) {
+      const x = c * cell;
+      const y = r * cell;
+      const terrain =
+        Math.sin(c * 0.22 + t * 0.85) +
+        Math.cos(r * 0.17 - t * 0.55) +
+        Math.sin((c + r) * 0.08 + t * 0.7);
+      const diagonal = r - c * 0.78 + Math.sin(c * 0.15 + t) * 4;
+      const hash = slide11Hash(c, r, 210 + Math.floor(t * 2));
+      const checkerZone =
+        terrain > 0.42 &&
+        diagonal > -5 &&
+        diagonal < rows * 0.42 &&
+        (c + r) % 2 === 0;
+      const stripeZone = terrain < -0.12 && r > rows * 0.46 && c % 3 !== 1;
+      const starZone = !checkerZone && !stripeZone && hash > 0.68;
+      const dotZone = hash > 0.93 || (c % 9 === 0 && r % 7 === 0);
+
+      if (checkerZone) {
+        const on = (c + r + Math.floor(t * 2)) % 2 === 0;
+        if (on) {
+          fillRgb(ctx, ink, 0.5);
+          ctx.fillRect(x, y, cell + 0.5, cell + 0.5);
+        }
+      } else if (stripeZone) {
+        fillRgb(ctx, ink, 0.48);
+        const bars = 2;
+        const barW = Math.max(3, cell * 0.13);
+        for (let i = 0; i < bars; i++) {
+          const offset = i * cell * 0.34 + ((r + c) % 3) * cell * 0.05;
+          ctx.fillRect(x + offset, y, barW, cell + 0.5);
+        }
+      } else if (starZone) {
+        fillRgb(ctx, ink, hash > 0.82 ? 0.64 : 0.46);
+        const drift = Math.sin(t * 2 + c * 0.3 + r * 0.2) * cell * 0.06;
+        ctx.fillText("*", x + cell * 0.5 + drift, y + cell * 0.52);
+      }
+
+      if (dotZone) {
+        fillRgb(ctx, ink, 0.52);
+        const s = Math.max(4, cell * 0.14);
+        ctx.fillRect(x + cell * 0.39, y + cell * 0.39, s, s);
+      }
+
+      if (hash > 0.96 && !checkerZone) {
+        fillRgb(ctx, inkSoft, 0.34);
+        ctx.fillRect(x, y, cell * 0.72, cell * 0.72);
+      }
+    }
+  }
+
+  for (let band = 0; band < 4; band++) {
+    const y = CANVAS_H * (0.12 + band * 0.22) + Math.sin(t + band) * cell;
+    fillRgb(ctx, ink, 0.2);
+    for (let c = 0; c < cols; c += 4) {
+      const x = c * cell + ((band % 2) * cell);
+      ctx.fillRect(x, y, cell, cell);
+    }
+  }
+}
+
+function drawSlide11AsciiZinePoster(ctx, colors, t, px) {
+  const blue = colors.bg;
+  const paper = colors.fg;
+  const blueInk = colors.bg;
+  const palePixel = mixRgb(blue, paper, 0.36);
+  const midPixel = mixRgb(blue, paper, 0.18);
+  const mono = "'Space Mono', 'Necto Mono', monospace";
+  const margin = CANVAS_W * 0.03;
+  const bodyMargin = CANVAS_W * 0.03;
+  const whiteY = CANVAS_H * 0.58;
+
+  ctx.fillStyle = `rgb(${blue[0]},${blue[1]},${blue[2]})`;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  drawSlide11ReferencePixels(ctx, CANVAS_W * 0.62, -px * 1.2, px * 2.2, t, [
+    paper,
+    blue,
+    palePixel,
+    blue,
+    paper,
+  ]);
+  drawSlide11ReferencePixels(ctx, CANVAS_W * 0.76, CANVAS_H * 0.08, px * 2.5, t + 2, [
+    blue,
+    paper,
+    blue,
+    midPixel,
+    paper,
+  ]);
+
+  ctx.fillStyle = `rgba(${paper[0]},${paper[1]},${paper[2]},0.52)`;
+  ctx.font = `400 ${Math.round(px * 2.8)}px ${mono}`;
+  ctx.fillText("/*", margin * 0.22, CANVAS_H * 0.055);
+  ctx.fillText("/*", margin * 0.22, CANVAS_H * 0.135);
+  ctx.fillText("/*", margin * 0.22, CANVAS_H * 0.215);
+
+  drawSlide11AsciiHeadline(
+    ctx,
+    ["PROCESSING"],
+    margin,
+    CANVAS_H * 0.03,
+    CANVAS_W - margin * 2,
+    CANVAS_H * 0.16,
+    paper,
+    blue,
+    t,
+  );
+  drawSlide11MetaLine(ctx, `26.06.2026//CRTIC`, margin + px * 3.8, CANVAS_H * 0.215, paper, px * 1.42);
+  drawSlide11AsciiHeadline(
+    ctx,
+    ["COMMUNITY"],
+    margin,
+    CANVAS_H * 0.255,
+    CANVAS_W - margin * 2,
+    CANVAS_H * 0.145,
+    paper,
+    blue,
+    t + 0.8,
+  );
+  drawSlide11MetaLine(ctx, `FaAAD//27.06.2026`, margin + px * 3.8, CANVAS_H * 0.43, paper, px * 1.35);
+  drawSlide11AsciiHeadline(
+    ctx,
+    ["DAY 2026"],
+    margin,
+    CANVAS_H * 0.455,
+    CANVAS_W - margin * 2,
+    CANVAS_H * 0.12,
+    paper,
+    blue,
+    t + 1.6,
+  );
+
+  drawSlide11SlashBand(ctx, whiteY - px * 3.0, px * 3.7, paper, t, true);
+
+  ctx.fillStyle = `rgb(${paper[0]},${paper[1]},${paper[2]})`;
+  ctx.fillRect(0, whiteY, CANVAS_W, CANVAS_H - whiteY);
+
+  const infoY = whiteY + px * 3.8;
+  const leftX = bodyMargin;
+  const rightX = CANVAS_W * 0.52;
+  const leftW = CANVAS_W * 0.43;
+  const rightW = CANVAS_W - rightX - bodyMargin;
+  const bodySize = Math.round(px * 1.22);
+  drawSlide11Paragraph(ctx, SLIDE11_DESCRIPTION, leftX, infoY, leftW, bodySize, blueInk, 1.58);
+  drawSlide11List(ctx, SLIDE11_PEOPLE, rightX, infoY, rightW, bodySize, blueInk, ">");
+
+  drawSlide11SlashBand(ctx, whiteY + CANVAS_H * 0.225, px * 3.7, blueInk, t + 1, false);
+
+  drawSlide11ProjectTicker(
+    ctx,
+    bodyMargin,
+    whiteY + CANVAS_H * 0.29,
+    CANVAS_W - bodyMargin * 2,
+    CANVAS_H * 0.08,
+    blueInk,
+    Math.round(px * 0.95),
+  );
+
+  drawSlide11LogoRow(ctx, bodyMargin, CANVAS_H - px * 5.7, CANVAS_W - bodyMargin * 2, px * 4.3, blueInk);
+}
+
+function drawSlide11AsciiShelf(ctx, x, y, w, px, color, t, variant = 0) {
+  const size = Math.round(px * 0.78);
+  ctx.font = `700 ${size}px 'Space Mono', monospace`;
+  ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.86)`;
+  const patterns = [
+    "|=|__|::|__|~~~|__|=|###|>__<|^^|__|::::|__|",
+    "===---===---|||---:::---|||---ooo---|||---===",
+    "|===|--| |--|+++|--|[]|--|::::|--|==|--|::|",
+  ];
+  const text = patterns[variant % patterns.length];
+  const charW = ctx.measureText("M").width;
+  const repeat = Math.ceil(w / (text.length * charW)) + 1;
+  const scroll = Math.floor(t * 2) % text.length;
+  const line = (text.repeat(repeat + 1)).slice(scroll, scroll + Math.ceil(w / charW) + 2);
+  ctx.fillText(line, x, y);
+  ctx.fillText("=".repeat(Math.ceil(w / charW)), x, y + size * 1.25);
+}
+
+function drawSlide11AsciiBook(ctx, x, y, w, h, ink, softInk, px) {
+  drawSlide11AsciiBox(ctx, x, y, w, h, ink, px, "");
+  const size = Math.round(px * 0.88);
+  const lineH = size * 1.1;
+  const mid = x + w / 2;
+  ctx.font = `700 ${size}px 'Space Mono', monospace`;
+  ctx.fillStyle = `rgba(${softInk[0]},${softInk[1]},${softInk[2]},0.72)`;
+  const rows = Math.floor(h / lineH) - 2;
+  for (let i = 1; i <= rows; i++) {
+    const yy = y + i * lineH;
+    ctx.fillText("||", x + px * 1.1, yy);
+    ctx.fillText("||", x + w - px * 2.2, yy);
+    ctx.fillText(i % 2 ? " |" : " /", mid - px * 0.5, yy);
+    ctx.fillText(i % 2 ? "| " : "\\ ", mid + px * 0.2, yy);
+  }
+  strokeRgb(ctx, ink, 0.74);
+  ctx.lineWidth = Math.max(1, px * 0.11);
+  ctx.beginPath();
+  ctx.moveTo(mid, y + px * 1.5);
+  ctx.lineTo(mid, y + h - px * 1.5);
+  ctx.stroke();
+}
+
+function drawSlide11AsciiBox(ctx, x, y, w, h, color, px, title = "") {
+  const size = Math.round(px * 0.82);
+  const lineH = size * 1.1;
+  ctx.font = `700 ${size}px 'Space Mono', monospace`;
+  ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.86)`;
+  const charW = ctx.measureText("M").width;
+  const cols = Math.max(4, Math.floor(w / charW) - 2);
+  const rows = Math.max(3, Math.floor(h / lineH));
+  const top = "." + "-".repeat(cols) + ".";
+  const bottom = "'" + "-".repeat(cols) + "'";
+  ctx.fillText(top, x, y + lineH);
+  for (let r = 2; r < rows; r++) {
+    ctx.fillText("|" + " ".repeat(cols) + "|", x, y + r * lineH);
+  }
+  ctx.fillText(bottom, x, y + rows * lineH);
+  if (title) {
+    ctx.fillText(`| ${title} ${"-".repeat(Math.max(2, cols - title.length - 3))}|`, x, y + lineH * 2);
+  }
+}
+
+function drawSlide11AsciiCentered(ctx, text, x, y, w, color, size) {
+  ctx.font = `900 ${size}px 'Space Mono', monospace`;
+  ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.9)`;
+  ctx.textAlign = "center";
+  ctx.fillText(text, x + w / 2, y);
+  ctx.textAlign = "left";
+}
+
+function drawSlide11ReferencePixels(ctx, x, y, cell, t, palette) {
+  const pattern = [
+    "001101011001111001",
+    "010010010100001010",
+    "111010110111011110",
+    "001110010010010001",
+    "011001111010111011",
+    "110010001110010110",
+    "010111010011111001",
+  ];
+  const drift = Math.floor(t * 1.5) % pattern[0].length;
+  for (let r = 0; r < pattern.length; r++) {
+    for (let c = 0; c < pattern[r].length; c++) {
+      const idx = (c + drift) % pattern[r].length;
+      if (pattern[r][idx] !== "1" && slide11Hash(c, r, Math.floor(t * 4)) < 0.58) continue;
+      const color = palette[(c + r * 2 + Math.floor(t)) % palette.length];
+      ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${color === palette[1] ? 0.58 : 0.96})`;
+      ctx.fillRect(x + c * cell, y + r * cell, cell, cell);
+    }
+  }
+}
+
+function drawSlide11MetaLine(ctx, text, x, y, color, size) {
+  ctx.font = `900 ${Math.round(size)}px 'Space Mono', 'Necto Mono', monospace`;
+  ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.96)`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(text, x, y);
+}
+
+function drawSlide11SlashBand(ctx, y, h, color, t, fillBg = false) {
+  if (fillBg) {
+    ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},1)`;
+    ctx.fillRect(0, y, CANVAS_W, h);
+    ctx.fillStyle = `rgba(${state.preset.bg ? hexRgb(state.preset.bg)[0] : 0},${state.preset.bg ? hexRgb(state.preset.bg)[1] : 0},${state.preset.bg ? hexRgb(state.preset.bg)[2] : 0},0.98)`;
+  } else {
+    ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.98)`;
+  }
+  const size = Math.max(14, h * 0.78);
+  ctx.font = `900 ${Math.round(size)}px 'Space Mono', monospace`;
+  ctx.textBaseline = "top";
+  const slash = "////////////////////////////";
+  const charW = ctx.measureText("/").width;
+  const offset = -((t * 18) % (charW * 2));
+  for (let yy = y - size * 0.08; yy < y + h; yy += size * 0.58) {
+    for (let x = offset; x < CANVAS_W + charW * 2; x += slash.length * charW * 0.72) {
+      ctx.fillText(slash, x, yy);
+    }
+  }
+}
+
+function drawSlide11ProjectTicker(ctx, x, y, w, h, color, size) {
+  const text = SLIDE11_PROJECTS.join(" // ");
+  const lines = slide11WrapText(ctx, text, w, `900 ${size}px 'Space Mono', monospace`);
+  ctx.font = `900 ${size}px 'Space Mono', monospace`;
+  ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.96)`;
+  ctx.textBaseline = "alphabetic";
+  const lineH = size * 1.55;
+  const maxLines = Math.floor(h / lineH);
+  lines.slice(0, maxLines).forEach((line, i) => {
+    ctx.fillText(line, x, y + i * lineH);
+  });
+}
+
+function drawSlide11LogoRow(ctx, x, y, w, h, color) {
+  const logoHex = slide11RgbHex(color);
+  const order = ["faad_lockup-principal", "processingFoundation", "LID", "crtic"];
+  const scale = {
+    "faad_lockup-principal": 0.7,
+    processingFoundation: 0.9,
+    LID: 0.88,
+    crtic: 0.92,
+  };
+  for (const name of order) {
+    const c = _logosImgCache[name];
+    const stale =
+      !c ||
+      c.color !== logoHex ||
+      (name === "processingFoundation" && c.bg !== state.preset.bg);
+    if (stale) _buildLogoImg(name, logoHex);
+  }
+
+  const logoData = order.map((name) => {
+    const c = _logosImgCache[name];
+    if (!c || !c.img.complete || c.img.naturalWidth === 0) return { w: 0, h: 0 };
+    const ih = h * (scale[name] ?? 1);
+    return { w: ih * (c.img.naturalWidth / c.img.naturalHeight), h: ih };
+  });
+  const totalW = logoData.reduce((sum, item) => sum + item.w, 0);
+  const gap = Math.max(24, (w - totalW) / (order.length - 1));
+  let xx = x;
+  order.forEach((name, i) => {
+    const c = _logosImgCache[name];
+    const d = logoData[i];
+    if (c && c.img.complete && c.img.naturalWidth > 0 && d.w > 0) {
+      ctx.drawImage(c.img, xx, y + (h - d.h) / 2, d.w, d.h);
+    }
+    xx += d.w + gap;
+  });
+}
+
+function slide11RgbHex(rgb) {
+  return (
+    "#" +
+    rgb
+      .map((value) =>
+        Math.max(0, Math.min(255, Math.round(value)))
+          .toString(16)
+          .padStart(2, "0"),
+      )
+      .join("")
+  );
+}
+
+function drawSlide11EditorialOverlay(ctx, colors, t, px) {
+  const bg = colors.bg;
+  const fg = colors.fg;
+  const panelBg = mixRgb(bg, [0, 0, 0], slide11RgbLum(bg) > 128 ? 0.08 : 0.16);
+  const margin = CANVAS_W * 0.055;
+  const gap = CANVAS_W * 0.028;
+  const titleTop = CANVAS_H * 0.045;
+  const titleH = CANVAS_H * 0.28;
+
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.textBaseline = "alphabetic";
+  ctx.textAlign = "left";
+
+  drawSlide11Rule(ctx, margin, titleTop - px * 1.2, CANVAS_W - margin * 2, fg, t);
+  drawSlide11AsciiHeadline(
+    ctx,
+    ["PROCESSING", "COMMUNITY", "DAY 2026"],
+    margin,
+    titleTop,
+    CANVAS_W - margin * 2,
+    titleH,
+    fg,
+    bg,
+    t,
+  );
+
+  const descY = titleTop + titleH + gap;
+  const descW = CANVAS_W * 0.58;
+  const dateX = margin + descW + gap;
+  const dateW = CANVAS_W - margin - dateX;
+  const footerY = CANVAS_H - margin - px * 5.6;
+  drawSlide11Panel(ctx, margin, descY, descW, CANVAS_H * 0.13, panelBg, fg, 0.74);
+  drawSlide11Label(ctx, "DESCRIPCION", margin + px, descY + px * 1.45, fg, px);
+  drawSlide11Paragraph(
+    ctx,
+    SLIDE11_DESCRIPTION,
+    margin + px,
+    descY + px * 3.2,
+    descW - px * 2,
+    Math.round(px * 1.05),
+    fg,
+    1.2,
+  );
+
+  drawSlide11Panel(ctx, dateX, descY, dateW, CANVAS_H * 0.13, fg, bg, 0.84);
+  ctx.fillStyle = `rgba(${bg[0]},${bg[1]},${bg[2]},0.92)`;
+  ctx.font = `700 ${Math.round(px * 1.15)}px 'Space Mono', monospace`;
+  ctx.fillText("FECHAS", dateX + px, descY + px * 1.6);
+  ctx.font = `900 ${Math.round(px * 2.1)}px 'Space Mono', monospace`;
+  ctx.fillText(SLIDE11_DATES[0], dateX + px, descY + px * 4.2);
+  ctx.fillText(SLIDE11_DATES[1], dateX + px, descY + px * 6.6);
+
+  const peopleY = descY + CANVAS_H * 0.16;
+  const peopleW = CANVAS_W * 0.34;
+  const projectsX = margin + peopleW + gap;
+  const projectsW = CANVAS_W - margin - projectsX;
+  const contentH = footerY - peopleY - gap;
+  drawSlide11Panel(ctx, margin, peopleY, peopleW, contentH, panelBg, fg, 0.66);
+  drawSlide11Label(ctx, "PERSONAS", margin + px, peopleY + px * 1.5, fg, px);
+  drawSlide11List(ctx, SLIDE11_PEOPLE, margin + px, peopleY + px * 3.4, peopleW - px * 2, Math.round(px * 1.0), fg, ">");
+
+  drawSlide11Panel(ctx, projectsX, peopleY, projectsW, contentH, panelBg, fg, 0.68);
+  drawSlide11Label(ctx, "PROYECTOS", projectsX + px, peopleY + px * 1.5, fg, px);
+  drawSlide11Projects(ctx, projectsX + px, peopleY + px * 3.4, projectsW - px * 2, contentH - px * 4.5, fg, px);
+
+  drawSlide11Panel(ctx, margin, footerY, CANVAS_W - margin * 2, px * 4.8, fg, bg, 0.82);
+  ctx.fillStyle = `rgba(${bg[0]},${bg[1]},${bg[2]},0.9)`;
+  ctx.font = `700 ${Math.round(px * 1.1)}px 'Space Mono', monospace`;
+  ctx.fillText("//// CREATIVE CODING / DIGITAL INTERACTION / EXHIBITION ////", margin + px, footerY + px * 1.8);
+  ctx.font = `900 ${Math.round(px * 1.7)}px 'Space Mono', monospace`;
+  ctx.fillText(SLIDE11_TITLE, margin + px, footerY + px * 3.9);
+  ctx.restore();
+}
+
+function drawSlide11AsciiHeadline(ctx, lines, x, y, w, h, fg, bg, t) {
+  const off = document.createElement("canvas");
+  const scale = 0.5;
+  off.width = Math.max(1, Math.floor(w * scale));
+  off.height = Math.max(1, Math.floor(h * scale));
+  const octx = off.getContext("2d");
+  octx.clearRect(0, 0, off.width, off.height);
+  octx.fillStyle = "white";
+  octx.textBaseline = "top";
+  octx.textAlign = "left";
+
+  const lineH = off.height / lines.length;
+  const fontFamily = "'Space Mono', monospace";
+  lines.forEach((line, i) => {
+    let fs = lineH * 0.9;
+    octx.font = `900 ${fs}px ${fontFamily}`;
+    while (fs > 8 && octx.measureText(line).width > off.width * 0.98) {
+      fs -= 1;
+      octx.font = `900 ${fs}px ${fontFamily}`;
+    }
+    const yy = i * lineH + (lineH - fs) * 0.08;
+    octx.fillText(line, 0, yy);
+  });
+
+  const data = octx.getImageData(0, 0, off.width, off.height).data;
+  const sample = Math.max(4, Math.floor(off.width / 115));
+  const outCell = sample / scale;
+  const chars = ["#", "/", "=", "*", "0", "1"];
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.font = `900 ${Math.max(7, Math.round(outCell * 0.95))}px 'Space Mono', monospace`;
+  for (let yy = 0; yy < off.height; yy += sample) {
+    for (let xx = 0; xx < off.width; xx += sample) {
+      const idx = (yy * off.width + xx) * 4 + 3;
+      if (data[idx] < 64) continue;
+      const flicker = 0.78 + Math.sin(t * 3 + xx * 0.09 + yy * 0.04) * 0.18;
+      ctx.fillStyle = `rgba(${fg[0]},${fg[1]},${fg[2]},${Math.max(0.35, flicker).toFixed(2)})`;
+      const ch = chars[(xx / sample + yy / sample) % chars.length | 0];
+      ctx.fillText(ch, x + xx / scale, y + yy / scale);
+    }
+  }
+}
+
+function drawSlide11Panel(ctx, x, y, w, h, fillRgbValue, strokeRgbValue, alpha = 0.7) {
+  fillRgb(ctx, fillRgbValue, alpha);
+  ctx.fillRect(x, y, w, h);
+  strokeRgb(ctx, strokeRgbValue, 0.58);
+  ctx.lineWidth = Math.max(1, CANVAS_W * 0.002);
+  ctx.strokeRect(x, y, w, h);
+}
+
+function drawSlide11Rule(ctx, x, y, w, color, t) {
+  strokeRgb(ctx, color, 0.78);
+  ctx.lineWidth = Math.max(1, CANVAS_W * 0.002);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + w, y);
+  ctx.stroke();
+  ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.74)`;
+  ctx.font = `700 ${Math.round(CANVAS_W * 0.018)}px 'Space Mono', monospace`;
+  const marks = "/ / / / / / / / / / / / / / / / / / / /";
+  ctx.fillText(marks.slice(Math.floor(t * 3) % 4), x, y - CANVAS_W * 0.012);
+}
+
+function drawSlide11Label(ctx, text, x, y, color, px) {
+  ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.9)`;
+  ctx.font = `900 ${Math.round(px * 1.08)}px 'Space Mono', monospace`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(`[ ${text} ]`, x, y);
+}
+
+function drawSlide11Paragraph(ctx, text, x, y, w, size, color, leading = 1.25) {
+  const lines = slide11WrapText(ctx, text, w, `700 ${size}px 'Space Mono', monospace`);
+  ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.9)`;
+  ctx.font = `700 ${size}px 'Space Mono', monospace`;
+  lines.forEach((line, i) => ctx.fillText(line, x, y + i * size * leading));
+}
+
+function drawSlide11List(ctx, items, x, y, w, size, color, prefix = ">") {
+  ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.92)`;
+  ctx.font = `700 ${size}px 'Space Mono', monospace`;
+  let yy = y;
+  for (const item of items) {
+    const lines = slide11WrapText(ctx, `${prefix} ${item}`, w, `700 ${size}px 'Space Mono', monospace`);
+    for (const line of lines) {
+      ctx.fillText(line, x, yy);
+      yy += size * 1.22;
+    }
+    yy += size * 0.22;
+  }
+}
+
+function drawSlide11Projects(ctx, x, y, w, h, color, px) {
+  const colGap = px * 1.4;
+  const colW = (w - colGap) / 2;
+  const size = Math.round(px * 0.8);
+  const left = SLIDE11_PROJECTS.slice(0, Math.ceil(SLIDE11_PROJECTS.length / 2));
+  const right = SLIDE11_PROJECTS.slice(left.length);
+  drawSlide11ProjectColumn(ctx, left, x, y, colW, h, size, color, "01");
+  drawSlide11ProjectColumn(ctx, right, x + colW + colGap, y, colW, h, size, color, "02");
+}
+
+function drawSlide11ProjectColumn(ctx, items, x, y, w, h, size, color, label) {
+  ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.86)`;
+  ctx.font = `700 ${size}px 'Space Mono', monospace`;
+  ctx.fillText(`// ${label}`, x, y);
+  let yy = y + size * 1.45;
+  items.forEach((item, index) => {
+    const lines = slide11WrapText(ctx, `${String(index + 1).padStart(2, "0")} ${item}`, w, `700 ${size}px 'Space Mono', monospace`);
+    for (const line of lines) {
+      if (yy > y + h - size) return;
+      ctx.fillText(line, x, yy);
+      yy += size * 1.15;
+    }
+    yy += size * 0.28;
+  });
+}
+
+function slide11WrapText(ctx, text, maxWidth, font) {
+  ctx.font = font;
+  const words = text.split(" ");
+  const lines = [];
+  let current = "";
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (current && ctx.measureText(test).width > maxWidth) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+function drawSlide11OrganicVeins(ctx, colorA, colorB, t, px, count, alpha) {
+  const step = Math.max(6, px * 0.75);
+  for (let i = 0; i < count; i++) {
+    const fromLeft = i % 2 === 0;
+    let x = fromLeft ? -step * 2 : CANVAS_W + step * 2;
+    let y = CANVAS_H * (((i * 0.173 + 0.09) % 0.92) + 0.04);
+    const dir = fromLeft ? 1 : -1;
+    const length = Math.ceil(CANVAS_W / step) + 10;
+    fillRgb(ctx, i % 3 === 0 ? colorB : colorA, alpha + (i % 4) * 0.045);
+    for (let k = 0; k < length; k++) {
+      const drift =
+        Math.sin(k * 0.33 + i * 1.9 + t * 1.4) * step * 1.1 +
+        Math.cos(k * 0.11 - t + i) * step * 0.8;
+      const yy = y + drift;
+      const w = step * (0.7 + ((i + k) % 3) * 0.34);
+      const h = Math.max(2, step * (0.18 + ((i + k) % 2) * 0.18));
+      ctx.fillRect(Math.round(x), Math.round(yy), Math.round(w), Math.round(h));
+      if ((k + i) % 5 === 0) {
+        ctx.fillRect(Math.round(x), Math.round(yy + step * 0.8), Math.round(step * 0.45), Math.round(step * 0.45));
+      }
+      x += dir * step * (0.82 + 0.18 * Math.sin(k * 0.4 + t));
+    }
+  }
+}
+
+function drawSlide11MicroPattern(ctx, x, y, w, h, cell, mode, palette, t) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  const cols = Math.ceil(w / cell);
+  const rows = Math.ceil(h / cell);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const n = slide11Hash(c, r, mode * 19 + Math.floor(t * 3));
+      const rgb = palette[Math.floor(n * palette.length) % palette.length];
+      fillRgb(ctx, rgb, 1);
+      const xx = x + c * cell;
+      const yy = y + r * cell;
+      if (mode === 0) {
+        if ((r + c + Math.floor(t)) % 2 === 0) ctx.fillRect(xx, yy, cell, cell);
+      } else if (mode === 1) {
+        ctx.fillRect(xx, yy, cell * 0.32, cell);
+      } else if (mode === 2) {
+        if (n > 0.42) ctx.fillRect(xx + cell * 0.25, yy + cell * 0.25, cell * 0.5, cell * 0.5);
+      } else {
+        ctx.fillRect(xx, yy + cell * 0.4, cell, cell * 0.22);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function slide11Hash(x, y, seed = 0) {
+  const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+function mixRgb(a, b, amt) {
+  return a.map((v, i) => Math.round(v * (1 - amt) + b[i] * amt));
+}
+
+function fillRgb(ctx, rgb, alpha = 1) {
+  const a = slide11LightAlpha(rgb, alpha);
+  ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
+}
+
+function strokeRgb(ctx, rgb, alpha = 1) {
+  const a = slide11LightAlpha(rgb, alpha);
+  ctx.strokeStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
+}
+
+function slide11LightAlpha(rgb, alpha) {
+  const lum = slide11RgbLum(rgb);
+  if (lum > 245) return alpha * 0.54;
+  if (lum > 225) return alpha * 0.66;
+  if (lum > 205) return alpha * 0.82;
+  return alpha;
+}
+
+function slide11RgbLum(rgb) {
+  return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+}
+
+function drawSlide11Checker(ctx, x, y, w, h, cell, a, b) {
+  const cols = Math.ceil(w / cell);
+  const rows = Math.ceil(h / cell);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      fillRgb(ctx, (r + c) % 2 ? a : b, 1);
+      ctx.fillRect(x + c * cell, y + r * cell, cell + 0.5, cell + 0.5);
+    }
+  }
+}
+
+function drawSlide11VerticalBars(ctx, x, y, w, h, cell, a, b, t) {
+  const cols = Math.ceil(w / cell);
+  for (let c = 0; c < cols; c++) {
+    const wave = (Math.sin(t * 2 + c * 0.7) + 1) * 0.5;
+    const barH = h * (0.45 + wave * 0.55);
+    fillRgb(ctx, c % 3 === 0 ? b : a, 1);
+    ctx.fillRect(Math.round(x + c * cell), Math.round(y), Math.ceil(cell * 0.62), Math.round(barH));
+  }
+}
+
+function drawSlide11DotField(ctx, x, y, w, h, cell, color, t) {
+  const step = Math.max(5, Math.round(cell * 0.55));
+  const r = Math.max(1.2, cell * 0.08);
+  fillRgb(ctx, color, 0.96);
+  for (let yy = y; yy < y + h; yy += step) {
+    for (let xx = x; xx < x + w; xx += step) {
+      const n = Math.sin(xx * 0.017 + yy * 0.023 + t * 3);
+      if (n > -0.72) {
+        ctx.beginPath();
+        ctx.arc(xx, yy, r + Math.max(0, n) * r * 0.9, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+}
+
+function drawSlide11DiagonalHatch(ctx, x, y, w, h, cell, color, t) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  strokeRgb(ctx, color, 0.92);
+  ctx.lineWidth = Math.max(1, cell * 0.08);
+  const gap = cell * 0.6;
+  const drift = (t * cell * 0.55) % gap;
+  for (let i = -h; i < w + h; i += gap) {
+    ctx.beginPath();
+    ctx.moveTo(x + i + drift, y + h);
+    ctx.lineTo(x + i + h + drift, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawSlide11Waves(ctx, x, y, w, h, cell, color, t) {
+  strokeRgb(ctx, color, 0.95);
+  ctx.lineWidth = Math.max(1, cell * 0.09);
+  const lines = Math.max(5, Math.floor(h / (cell * 0.38)));
+  for (let l = 0; l < lines; l++) {
+    const yy = y + l * cell * 0.36;
+    ctx.beginPath();
+    for (let xx = x; xx <= x + w; xx += cell * 0.32) {
+      const wave = Math.sin((xx - x) * 0.08 + t * 3 + l * 0.8) * cell * 0.12;
+      if (xx === x) ctx.moveTo(xx, yy + wave);
+      else ctx.lineTo(xx, yy + wave);
+    }
+    ctx.stroke();
+  }
+}
+
 function getActiveSlide9Layout() {
   const layouts = state.slide9?.layouts || [];
   if (!layouts.length) return null;
@@ -2500,8 +3747,22 @@ function drawBannerTitle(p) {
 function switchFormat(fmt) {
   if (fmt === state.format) return;
   state.format = fmt;
-  const w = fmt === "banner" ? BANNER_W : fmt === "a5" ? A5_W : IG_W;
-  const h = fmt === "banner" ? BANNER_H : fmt === "a5" ? A5_H : IG_H;
+  const w =
+    fmt === "banner"
+      ? BANNER_W
+      : fmt === "a5"
+        ? A5_W
+        : fmt === "slide11"
+          ? SLIDE11_W
+          : IG_W;
+  const h =
+    fmt === "banner"
+      ? BANNER_H
+      : fmt === "a5"
+        ? A5_H
+        : fmt === "slide11"
+          ? SLIDE11_H
+          : IG_H;
   setCanvasSize(w, h);
   if (p5Instance) p5Instance.resizeCanvas(w, h);
   state.meta.topLeft = `${w}×${h}`;
@@ -2991,7 +4252,7 @@ function buildWcagSwatches() {
   if (!container) return;
   container.innerHTML = "";
   const palettes =
-    state.posterSlide === 10
+    [10, 11].includes(state.posterSlide)
       ? SLIDE10_PALETTES_DEF
       : WCAG_PALETTES;
   palettes.forEach((palette) => {
@@ -3094,9 +4355,11 @@ function syncControlsFromState() {
       ? state.anim.slide4Anim
       : mode === "slide10"
         ? state.anim.slide10BgAnim
-      : mode === "slide7"
-        ? state.anim.slide7Anim
-        : state.anim.current,
+        : mode === "slide11"
+          ? state.anim.slide11Anim
+          : mode === "slide7"
+            ? state.anim.slide7Anim
+            : state.anim.current,
   );
   setControlValue("anim-blend", state.anim.blendMode);
   setControlValue("anim-speed", state.anim.speed);
@@ -3164,22 +4427,35 @@ function syncControlsFromState() {
 
 function updateSlide10Controls() {
   const isSlide10 = state.posterSlide === 10;
+  const isSlide11 = state.posterSlide === 11;
+  const isFixedHeroFormat = isSlide10 || isSlide11;
   const formatSelect = document.getElementById("format-select");
   if (formatSelect) {
     if (isSlide10) formatSelect.value = "a5";
-    formatSelect.disabled = isSlide10;
-    formatSelect.title = isSlide10 ? "El slide 10 usa formato A5 fijo" : "";
+    if (isSlide11) formatSelect.value = "slide11";
+    formatSelect.disabled = isFixedHeroFormat;
+    formatSelect.title = isSlide10
+      ? "El slide 10 usa formato A5 fijo"
+      : isSlide11
+        ? "El slide 11 usa formato 100×170 cm fijo"
+        : "";
   }
 
   const extraLogos = document.getElementById("extra-logos-controls");
   if (extraLogos) {
     extraLogos.style.display =
-      state.format === "banner" || isSlide10 ? "none" : "";
+      state.format === "banner" || isFixedHeroFormat ? "none" : "";
+  }
+
+  const convocatoriaControls = document.getElementById("convocatoria-tag-controls");
+  if (convocatoriaControls) {
+    convocatoriaControls.style.display =
+      state.format === "banner" || isFixedHeroFormat ? "none" : "";
   }
 
   const paletteLabel = document.getElementById("palette-section-label");
   if (paletteLabel) {
-    paletteLabel.textContent = isSlide10
+    paletteLabel.textContent = isFixedHeroFormat
       ? "Paletas fluor e invertidas"
       : "Paletas accesibles (WCAG AA)";
   }
@@ -3188,7 +4464,20 @@ function updateSlide10Controls() {
   if (animationLabel) {
     animationLabel.textContent = isSlide10
       ? "Animación de fondo"
+      : isSlide11
+        ? "Animación pixel"
       : "Animación";
+  }
+
+  const heroControls = document.getElementById("slide10-hero-controls");
+  if (heroControls) heroControls.style.display = isSlide10 ? "" : "none";
+
+  const heroBtn = document.getElementById("btn-toggle-slide10-hero");
+  if (heroBtn) {
+    heroBtn.textContent = state.slide10.showHero
+      ? "Ocultar Processing Community Day"
+      : "Mostrar Processing Community Day";
+    heroBtn.classList.toggle("active", !state.slide10.showHero);
   }
 }
 
@@ -3253,7 +4542,7 @@ function applyColorPreset(id) {
 /* =====================================================
    SELECTOR DE ANIMACIONES DINÁMICO
    ===================================================== */
-// mode: 'slide45' | 'slide10' | 'slide9' | 'slide7' | 'poster'
+// mode: 'slide45' | 'slide10' | 'slide11' | 'slide9' | 'slide7' | 'poster'
 function rebuildAnimSelect(mode) {
   const select = document.getElementById("anim-select");
   if (!select) return;
@@ -3265,6 +4554,8 @@ function rebuildAnimSelect(mode) {
       ? state.anim.slide4Anim
       : mode === "slide10"
         ? state.anim.slide10BgAnim
+        : mode === "slide11"
+          ? state.anim.slide11Anim
         : mode === "slide9"
           ? state.anim.slide9Anim
           : mode === "slide7"
@@ -3276,7 +4567,9 @@ function rebuildAnimSelect(mode) {
       isFullCanvas && curAnimVal === "pixel-explosion" ? "" : "none";
   updateSlide8TypographyControls();
   const options =
-    mode === "slide10"
+    mode === "slide11"
+      ? ANIM_OPTIONS_SLIDE11
+      : mode === "slide10"
       ? ANIM_OPTIONS_SLIDE4
       : isFullCanvas
         ? ANIM_OPTIONS_SLIDE4
@@ -3286,6 +4579,8 @@ function rebuildAnimSelect(mode) {
       ? state.anim.slide4Anim
       : mode === "slide10"
         ? state.anim.slide10BgAnim
+        : mode === "slide11"
+          ? state.anim.slide11Anim
         : mode === "slide9"
           ? state.anim.slide9Anim
           : mode === "slide7"
@@ -3307,6 +4602,8 @@ function rebuildAnimSelect(mode) {
     } else if (mode === "slide10") {
       state.anim.slide10BgAnim = options[0].value;
       initSlide4Animation();
+    } else if (mode === "slide11") {
+      state.anim.slide11Anim = options[0].value;
     } else if (mode === "slide9") {
       state.anim.slide9Anim = options[0].value;
       initSlide4Animation();
@@ -3619,6 +4916,10 @@ function bindControls() {
       e.target.value = "a5";
       return;
     }
+    if (state.posterSlide === 11) {
+      e.target.value = "slide11";
+      return;
+    }
     switchFormat(e.target.value);
     const isBanner = e.target.value === "banner";
     const bc = document.getElementById("banner-controls");
@@ -3638,16 +4939,18 @@ function bindControls() {
     const prev = state.posterSlide;
     state.posterSlide = Number(e.target.value);
 
-    if (state.posterSlide === 10) {
-      if (prev !== 10) {
-        formatBeforeSlide10 = state.format === "a5" ? "ig" : state.format;
+    if ([10, 11].includes(state.posterSlide)) {
+      if (![10, 11].includes(prev)) {
+        formatBeforeSlide10 = ["a5", "slide11"].includes(state.format)
+          ? "ig"
+          : state.format;
       }
-      switchFormat("a5");
+      switchFormat(state.posterSlide === 10 ? "a5" : "slide11");
       const referenceBlue = SLIDE10_PALETTES_DEF.find(
         (palette) => palette.name === "Azul referencia / blanco",
       );
       if (referenceBlue) applyWcagPalette(referenceBlue);
-    } else if (prev === 10) {
+    } else if ([10, 11].includes(prev)) {
       const restoredFormat = formatBeforeSlide10 || "ig";
       switchFormat(restoredFormat);
       formatBeforeSlide10 = null;
@@ -3745,6 +5048,16 @@ function bindControls() {
       state.slide3Slide9Bg
         ? "Fondo slide 9 activo"
         : "Fondo slide 9 desactivado",
+    );
+  });
+
+  onClick("btn-toggle-slide10-hero", () => {
+    state.slide10.showHero = !state.slide10.showHero;
+    updateSlide10Controls();
+    showToast(
+      state.slide10.showHero
+        ? "Processing Community Day visible"
+        : "Processing Community Day oculto",
     );
   });
 
@@ -3973,6 +5286,9 @@ function bindControls() {
     } else if (state.posterSlide === 10) {
       state.anim.slide10BgAnim = e.target.value;
       initSlide4Animation();
+      if (pixelRow) pixelRow.style.display = "none";
+    } else if (state.posterSlide === 11) {
+      state.anim.slide11Anim = e.target.value;
       if (pixelRow) pixelRow.style.display = "none";
     } else if (state.posterSlide === 9 || isSlide3Slide9BgActive()) {
       state.anim.slide9Anim = e.target.value;
@@ -4364,8 +5680,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (state.posterSlide === 10) {
     state.format = "a5";
     setCanvasSize(A5_W, A5_H);
+  } else if (state.posterSlide === 11) {
+    state.format = "slide11";
+    setCanvasSize(SLIDE11_W, SLIDE11_H);
   } else if (state.format === "a5") {
     setCanvasSize(A5_W, A5_H);
+  } else if (state.format === "slide11") {
+    setCanvasSize(SLIDE11_W, SLIDE11_H);
   } else if (state.format === "banner") {
     setCanvasSize(BANNER_W, BANNER_H);
   }

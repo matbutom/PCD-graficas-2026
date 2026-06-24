@@ -80,15 +80,16 @@ class GlitchOverload extends BaseAnimation {
     off.drawingContext.fillStyle = `rgb(${fR},${fG},${fB})`;
 
     const _font = `'Space Mono', monospace`;
-    const leftX = bufW * 0.015;
-    const availW = bufW * 0.975;
+    const isSlide10 = this.state.posterSlide === 10;
+    const leftX = bufW * (isSlide10 ? 0.045 : 0.015);
+    const availW = bufW * (isSlide10 ? 0.91 : 0.975);
     const leading = this.state.anim?.slide4Leading ?? 0.74;
 
     off.drawingContext.textBaseline = "top";
     off.drawingContext.textAlign = "left";
 
     // 1ª pasada: calcular tamaños
-    const sizes = wordsToSample.map((word) => {
+    let sizes = wordsToSample.map((word) => {
       let sz = 40;
       off.drawingContext.font = `900 ${sz}px ${_font}`;
       while (off.drawingContext.measureText(word).width < availW) {
@@ -103,9 +104,15 @@ class GlitchOverload extends BaseAnimation {
     });
 
     // 2ª pasada: renderizar al buffer
-    const logoRes = bufH * 0.13;
-    const textAreaH = bufH - logoRes;
-    const totalH = sizes.reduce((acc, sz) => acc + Math.round(sz * leading), 0);
+    const verticalMargin = isSlide10 ? bufH * 0.045 : 0;
+    const logoRes = isSlide10 ? 0 : bufH * 0.13;
+    const textAreaH = bufH - logoRes - verticalMargin * 2;
+    let totalH = sizes.reduce((acc, sz) => acc + Math.round(sz * leading), 0);
+    if (isSlide10 && totalH > textAreaH) {
+      const scale = textAreaH / totalH;
+      sizes = sizes.map((sz) => sz * scale);
+      totalH = sizes.reduce((acc, sz) => acc + Math.round(sz * leading), 0);
+    }
     const commIdx = wordsToSample.indexOf("COMM");
 
     // --- CÁLCULO DE POSICIÓN Y PARA SLIDE 7 ---
@@ -145,7 +152,9 @@ class GlitchOverload extends BaseAnimation {
       // El "y" para el 26 es el inicio + el alto de las 3 líneas anteriores
       y = startY + heightOfFirstThree;
     } else {
-      y = Math.max(0, Math.floor((textAreaH - totalH) / 2));
+      y =
+        verticalMargin +
+        Math.max(0, Math.floor((textAreaH - totalH) / 2));
     }
 
     for (let i = 0; i < wordsToSample.length; i++) {
@@ -456,8 +465,9 @@ class PixelExplosion extends BaseAnimation {
     off.drawingContext.fillStyle = `rgb(${fR},${fG},${fB})`;
 
     const _font = `'Space Mono', monospace`;
-    const leftX = bufW * 0.015;
-    const availW = bufW * 0.975;
+    const isSlide10 = this.state.posterSlide === 10;
+    const leftX = bufW * (isSlide10 ? 0.045 : 0.015);
+    const availW = bufW * (isSlide10 ? 0.91 : 0.975);
     const leading = this.state.anim?.slide4Leading ?? 0.74;
 
     off.drawingContext.textBaseline = "top";
@@ -466,7 +476,7 @@ class PixelExplosion extends BaseAnimation {
     // 1ª pasada: cada palabra escala al ancho del canvas (sin cap de altura)
     const wordsToSample =
       this.state.posterSlide === 9 ? [] : SLIDE4_TITLE;
-    const sizes = wordsToSample.map((word) => {
+    let sizes = wordsToSample.map((word) => {
       let sz = 40;
       off.drawingContext.font = `900 ${sz}px ${_font}`;
       while (off.drawingContext.measureText(word).width < availW) {
@@ -481,11 +491,18 @@ class PixelExplosion extends BaseAnimation {
     });
 
     // 2ª pasada: centrar verticalmente en el área de texto (sin pisar logos)
-    const logoRes = bufH * 0.13;
-    const textAreaH = bufH - logoRes;
-    const totalH = sizes.reduce((acc, sz) => acc + Math.round(sz * leading), 0);
+    const verticalMargin = isSlide10 ? bufH * 0.045 : 0;
+    const logoRes = isSlide10 ? 0 : bufH * 0.13;
+    const textAreaH = bufH - logoRes - verticalMargin * 2;
+    let totalH = sizes.reduce((acc, sz) => acc + Math.round(sz * leading), 0);
+    if (isSlide10 && totalH > textAreaH) {
+      const scale = textAreaH / totalH;
+      sizes = sizes.map((sz) => sz * scale);
+      totalH = sizes.reduce((acc, sz) => acc + Math.round(sz * leading), 0);
+    }
     const commIdx = wordsToSample.indexOf("COMM");
-    let y = Math.max(0, Math.floor((textAreaH - totalH) / 2));
+    let y =
+      verticalMargin + Math.max(0, Math.floor((textAreaH - totalH) / 2));
     for (let i = 0; i < wordsToSample.length; i++) {
       const xOff = i === commIdx ? -bufW * 0.01 : 0;
       off.drawingContext.font = `900 ${sizes[i]}px ${_font}`;
@@ -1648,18 +1665,56 @@ class PixelDrift extends BaseAnimation {
     const [fR, fG, fB] = this.getFg();
     const speed = Math.max(0.2, this.state.anim?.speed || 2);
     const t = this._frame * 0.012 * speed;
+    const isSlide10Background = this._isSlide10Background === true;
+    const densityThreshold = isSlide10Background ? 0.47 : 0.56;
 
     ctx.save();
     for (let r = 0; r < this._rows; r++) {
       for (let c = 0; c < this._cols; c++) {
-        const n = p.noise(c * 0.095 + t, r * 0.095 - t, this.seed);
-        const wave = Math.sin((c * 0.28 + r * 0.17) + t * 5);
-        const active = n + wave * 0.12 > 0.56;
+        const noiseScale = isSlide10Background ? 0.032 : 0.095;
+        const n = p.noise(
+          c * noiseScale + t,
+          r * noiseScale - t,
+          this.seed,
+        );
+        const crossNoise = isSlide10Background
+          ? p.noise(c * 0.052 - t * 0.5, r * 0.052 + t * 0.42, this.seed + 31)
+          : 0;
+        const mutationNoise = isSlide10Background
+          ? p.noise(c * 0.018 + t * 0.3, r * 0.018 - t * 0.26, this.seed + 79)
+          : 0;
+        const wave =
+          Math.sin(
+            c * (isSlide10Background ? 0.075 : 0.28) +
+              r * (isSlide10Background ? 0.052 : 0.17) +
+              t * (isSlide10Background ? 1.5 : 5),
+          ) +
+          (isSlide10Background
+            ? Math.cos(c * 0.038 - r * 0.06 - t * 1.1) * 0.55
+            : 0);
+        const active =
+          n +
+            wave * 0.1 +
+            crossNoise * (isSlide10Background ? 0.12 : 0) +
+            mutationNoise * (isSlide10Background ? 0.1 : 0) >
+          densityThreshold;
         if (!active) continue;
 
-        const pulse = 0.18 + 0.54 * Math.max(0, n - 0.45);
-        const dx = Math.round(Math.sin(r * 0.21 + t * 7) * 2);
-        const dy = Math.round(Math.cos(c * 0.19 + t * 6) * 2);
+        const pulse = Math.min(
+          0.9,
+          0.18 +
+            0.54 * Math.max(0, n - 0.45) +
+            (isSlide10Background
+              ? 0.12 * Math.max(0, Math.sin(t * 8 + c * 0.3 - r * 0.2))
+              : 0),
+        );
+        const driftAmount = isSlide10Background ? 10 : 2;
+        const dx = Math.round(
+          Math.sin(r * 0.21 + t * 7 + crossNoise * 3) * driftAmount,
+        );
+        const dy = Math.round(
+          Math.cos(c * 0.19 + t * 6 - crossNoise * 3) * driftAmount,
+        );
         const inset = n > 0.72 ? 1 : 3;
         ctx.fillStyle = slide9PaletteFillStyle(
           this.state,
@@ -1673,6 +1728,22 @@ class PixelDrift extends BaseAnimation {
           sz - inset * 2,
           sz - inset * 2,
         );
+
+        if (
+          isSlide10Background &&
+          crossNoise + mutationNoise > 1.05 &&
+          Math.sin(t * 3 + c * 0.12 + r * 0.08) > 0.2
+        ) {
+          const satelliteSize = Math.floor(sz * 4.5);
+          ctx.globalAlpha = 0.28;
+          ctx.fillRect(
+            c * sz - sz * 1.75 - dx,
+            r * sz - sz * 1.75 - dy,
+            satelliteSize,
+            satelliteSize,
+          );
+          ctx.globalAlpha = 1;
+        }
       }
     }
     ctx.restore();
