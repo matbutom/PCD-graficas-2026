@@ -1607,8 +1607,31 @@ function parsePaletteHex(hex) {
   ];
 }
 
+function getSlide9EffectiveSlide(stateRef) {
+  return stateRef.slide9ContextSource || stateRef.posterSlide;
+}
+
+function mixPaletteRgb(a, b, amt) {
+  return a.map((v, i) => Math.round(v * (1 - amt) + b[i] * amt));
+}
+
 function getSlide9PaletteList(stateRef, fallbackRgb) {
-  if (stateRef.posterSlide !== 9 || !stateRef.slide9?.tintAnimations) {
+  const effectiveSlide = getSlide9EffectiveSlide(stateRef);
+  if (effectiveSlide === 12) {
+    const white = [255, 255, 255];
+    const fg =
+      stateRef.preset?.animColor || stateRef.preset?.fg
+        ? parsePaletteHex(stateRef.preset.animColor || stateRef.preset.fg)
+        : fallbackRgb;
+    return [
+      fg,
+      fg,
+      mixPaletteRgb(fg, white, 0.18),
+      mixPaletteRgb(fg, white, 0.34),
+      mixPaletteRgb(fallbackRgb, fg, 0.72),
+    ];
+  }
+  if (effectiveSlide !== 9 || !stateRef.slide9?.tintAnimations) {
     return null;
   }
   const source = getSlide9PaletteSource();
@@ -1629,8 +1652,9 @@ function getSlide9PaletteRgb(stateRef, key, fallbackRgb) {
 }
 
 function slide9PaletteFillStyle(stateRef, fallbackRgb, key, alpha) {
+  const effectiveSlide = getSlide9EffectiveSlide(stateRef);
   const [r, g, b] =
-    stateRef.posterSlide === 9 && stateRef.slide9?.tintAnimations
+    effectiveSlide === 12 || (effectiveSlide === 9 && stateRef.slide9?.tintAnimations)
       ? getSlide9PaletteRgb(stateRef, key, fallbackRgb)
       : fallbackRgb;
   return `rgba(${r},${g},${b},${alpha.toFixed(2)})`;

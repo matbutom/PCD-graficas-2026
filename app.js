@@ -11,6 +11,8 @@ const A5_W = 1748;
 const A5_H = 2480;
 const SLIDE11_W = 1000;
 const SLIDE11_H = 1700;
+const SLIDE12_W = 1920;
+const SLIDE12_H = 1080;
 const BANNER_W = 1600;
 const BANNER_H = 400;
 const BANNER_SPLIT = 800; // x split: left text panel | right pixel grid
@@ -630,11 +632,15 @@ function isSlide3Slide9BgActive(slide = state.posterSlide) {
   return slide === 3 && state.slide3Slide9Bg;
 }
 
+function isSlide9Like(slide = state.posterSlide) {
+  return slide === 9 || slide === 12;
+}
+
 function getPosterAnimMode(slide = state.posterSlide) {
   if (slide === 10) return "slide10";
   if (slide === 11) return "slide11";
   if ([4, 5].includes(slide)) return "slide45";
-  if (slide === 9 || isSlide3Slide9BgActive(slide)) return "slide9";
+  if (isSlide9Like(slide) || isSlide3Slide9BgActive(slide)) return "slide9";
   if ([7, 8].includes(slide)) {
     return "slide7";
   }
@@ -643,11 +649,18 @@ function getPosterAnimMode(slide = state.posterSlide) {
 
 function withSlide9PosterContext(fn) {
   const prev = state.posterSlide;
+  const prevSource = state.slide9ContextSource;
+  state.slide9ContextSource = prev;
   state.posterSlide = 9;
   try {
     return fn();
   } finally {
     state.posterSlide = prev;
+    if (prevSource === undefined) {
+      delete state.slide9ContextSource;
+    } else {
+      state.slide9ContextSource = prevSource;
+    }
   }
 }
 
@@ -675,20 +688,23 @@ const sketch = (p) => {
     const [bgR, bgG, bgB] = hexRgb(state.preset.bg);
     p.background(bgR, bgG, bgB);
 
-    if ([4, 5, 9, 10].includes(state.posterSlide) || isSlide3Slide9BgActive()) {
+    if ([4, 5, 9, 10, 12].includes(state.posterSlide) || isSlide3Slide9BgActive()) {
       if (!slide4Animation) initSlide4Animation();
       if (slide4Animation) {
         p.push();
         if (
-          state.posterSlide === 9 ||
+          isSlide9Like() ||
           state.posterSlide === 10 ||
           isSlide3Slide9BgActive()
         ) {
-          p.drawingContext.globalAlpha = state.anim.opacity / 100;
+          p.drawingContext.globalAlpha =
+            state.posterSlide === 12
+              ? Math.max(0.82, state.anim.opacity / 100)
+              : state.anim.opacity / 100;
         }
         if (isSlide3Slide9BgActive()) {
           withSlide9PosterContext(() => slide4Animation.draw());
-        } else if (state.posterSlide === 10) {
+        } else if (state.posterSlide === 10 || state.posterSlide === 12) {
           withSlide9PosterContext(() => slide4Animation.draw());
         } else {
           slide4Animation.draw();
@@ -727,7 +743,7 @@ const sketch = (p) => {
       ? (slide4Animation?.getPosterAlpha?.() ?? 0)
       : [5, 6, 7, 8].includes(state.posterSlide)
         ? 1
-        : state.posterSlide === 9 || state.posterSlide === 11 || isSlide3Slide9BgActive()
+        : isSlide9Like() || state.posterSlide === 11 || isSlide3Slide9BgActive()
           ? 1
           : (currentAnimation?.getPosterAlpha?.() ?? 1);
     if (posterAlpha > 0.004) {
@@ -770,7 +786,7 @@ const sketch = (p) => {
 };
 
 function dispatchMouse(p, type) {
-  const anim = [4, 5, 9, 10].includes(state.posterSlide) || isSlide3Slide9BgActive()
+  const anim = [4, 5, 9, 10, 12].includes(state.posterSlide) || isSlide3Slide9BgActive()
     ? slide4Animation
     : currentAnimation;
   if (!anim) return;
@@ -809,16 +825,16 @@ function initSlide4Animation() {
       slide4Animation.reset();
     }
     slide10HeroAnimation = new HeroClass(p5Instance, state);
-  } else if ([7, 8, 9].includes(state.posterSlide) || isSlide3Slide9BgActive()) {
+  } else if ([7, 8, 9, 12].includes(state.posterSlide) || isSlide3Slide9BgActive()) {
     slide10HeroAnimation = null;
     if (typeof ANIMATIONS_SLIDE7 === "undefined") return;
     const animName =
-      state.posterSlide === 9 || isSlide3Slide9BgActive()
+      isSlide9Like() || isSlide3Slide9BgActive()
         ? state.anim.slide9Anim
         : state.anim.slide7Anim;
     const AnimClass = ANIMATIONS_SLIDE7[animName];
     if (!AnimClass) return;
-    slide4Animation = isSlide3Slide9BgActive()
+    slide4Animation = isSlide3Slide9BgActive() || state.posterSlide === 12
       ? withSlide9PosterContext(() => new AnimClass(p5Instance, state))
       : new AnimClass(p5Instance, state);
   } else {
@@ -1121,7 +1137,7 @@ function drawLogos(p) {
    RENDER EDITORIAL
    ===================================================== */
 function drawEditorialContent(p) {
-  if (![4, 5, 6, 7, 8, 9, 10, 11].includes(state.posterSlide) && state.grid.show)
+  if (![4, 5, 6, 7, 8, 9, 10, 11, 12].includes(state.posterSlide) && state.grid.show)
     drawGrid(p);
   if (state.posterSlide === 0) {
     drawSlide0(p);
@@ -1145,6 +1161,8 @@ function drawEditorialContent(p) {
     drawSlide9(p);
   } else if (state.posterSlide === 11) {
     drawSlide11(p);
+  } else if (state.posterSlide === 12) {
+    drawSlide12(p);
   }
   if (state.showGuides) drawGuides(p);
 }
@@ -2323,6 +2341,10 @@ function drawSlide9(p) {
   p.push();
   p.drawingContext.drawImage(img, 0, 0, CANVAS_W, CANVAS_H);
   p.pop();
+}
+
+function drawSlide12(p) {
+  captureSlide9BackgroundFrame(p);
 }
 
 /* =====================================================
@@ -3518,6 +3540,11 @@ function getActiveSlide9Layout() {
 function captureSlide9BackgroundFrame(p) {
   if (!slide9BackgroundCanvas) {
     slide9BackgroundCanvas = document.createElement("canvas");
+  }
+  if (
+    slide9BackgroundCanvas.width !== CANVAS_W ||
+    slide9BackgroundCanvas.height !== CANVAS_H
+  ) {
     slide9BackgroundCanvas.width = CANVAS_W;
     slide9BackgroundCanvas.height = CANVAS_H;
   }
@@ -3754,6 +3781,8 @@ function switchFormat(fmt) {
         ? A5_W
         : fmt === "slide11"
           ? SLIDE11_W
+          : fmt === "slide12"
+            ? SLIDE12_W
           : IG_W;
   const h =
     fmt === "banner"
@@ -3762,6 +3791,8 @@ function switchFormat(fmt) {
         ? A5_H
         : fmt === "slide11"
           ? SLIDE11_H
+          : fmt === "slide12"
+            ? SLIDE12_H
           : IG_H;
   setCanvasSize(w, h);
   if (p5Instance) p5Instance.resizeCanvas(w, h);
@@ -4252,7 +4283,7 @@ function buildWcagSwatches() {
   if (!container) return;
   container.innerHTML = "";
   const palettes =
-    [10, 11].includes(state.posterSlide)
+    [10, 11, 12].includes(state.posterSlide)
       ? SLIDE10_PALETTES_DEF
       : WCAG_PALETTES;
   palettes.forEach((palette) => {
@@ -4357,6 +4388,8 @@ function syncControlsFromState() {
         ? state.anim.slide10BgAnim
         : mode === "slide11"
           ? state.anim.slide11Anim
+          : mode === "slide9"
+            ? state.anim.slide9Anim
           : mode === "slide7"
             ? state.anim.slide7Anim
             : state.anim.current,
@@ -4428,16 +4461,21 @@ function syncControlsFromState() {
 function updateSlide10Controls() {
   const isSlide10 = state.posterSlide === 10;
   const isSlide11 = state.posterSlide === 11;
-  const isFixedHeroFormat = isSlide10 || isSlide11;
+  const isSlide12 = state.posterSlide === 12;
+  const isFixedHeroFormat = isSlide10 || isSlide11 || isSlide12;
+  const usesHeroPalettes = isSlide10 || isSlide11 || isSlide12;
   const formatSelect = document.getElementById("format-select");
   if (formatSelect) {
     if (isSlide10) formatSelect.value = "a5";
     if (isSlide11) formatSelect.value = "slide11";
+    if (isSlide12) formatSelect.value = "slide12";
     formatSelect.disabled = isFixedHeroFormat;
     formatSelect.title = isSlide10
       ? "El slide 10 usa formato A5 fijo"
       : isSlide11
         ? "El slide 11 usa formato 100×170 cm fijo"
+        : isSlide12
+          ? "El slide 12 usa formato horizontal 1920×1080 fijo"
         : "";
   }
 
@@ -4455,7 +4493,7 @@ function updateSlide10Controls() {
 
   const paletteLabel = document.getElementById("palette-section-label");
   if (paletteLabel) {
-    paletteLabel.textContent = isFixedHeroFormat
+    paletteLabel.textContent = usesHeroPalettes
       ? "Paletas fluor e invertidas"
       : "Paletas accesibles (WCAG AA)";
   }
@@ -4466,6 +4504,8 @@ function updateSlide10Controls() {
       ? "Animación de fondo"
       : isSlide11
         ? "Animación pixel"
+        : isSlide12
+          ? "Animación pixel"
       : "Animación";
   }
 
@@ -4920,6 +4960,10 @@ function bindControls() {
       e.target.value = "slide11";
       return;
     }
+    if (state.posterSlide === 12) {
+      e.target.value = "slide12";
+      return;
+    }
     switchFormat(e.target.value);
     const isBanner = e.target.value === "banner";
     const bc = document.getElementById("banner-controls");
@@ -4939,18 +4983,32 @@ function bindControls() {
     const prev = state.posterSlide;
     state.posterSlide = Number(e.target.value);
 
-    if ([10, 11].includes(state.posterSlide)) {
-      if (![10, 11].includes(prev)) {
-        formatBeforeSlide10 = ["a5", "slide11"].includes(state.format)
+    if ([10, 11, 12].includes(state.posterSlide)) {
+      if (![10, 11, 12].includes(prev)) {
+        formatBeforeSlide10 = ["a5", "slide11", "slide12"].includes(state.format)
           ? "ig"
           : state.format;
       }
-      switchFormat(state.posterSlide === 10 ? "a5" : "slide11");
-      const referenceBlue = SLIDE10_PALETTES_DEF.find(
-        (palette) => palette.name === "Azul referencia / blanco",
+      switchFormat(
+        state.posterSlide === 10
+          ? "a5"
+          : state.posterSlide === 11
+            ? "slide11"
+            : "slide12",
       );
-      if (referenceBlue) applyWcagPalette(referenceBlue);
-    } else if ([10, 11].includes(prev)) {
+      if (state.posterSlide === 12) {
+        applyWcagPalette({
+          name: "Blanco referencia / azul",
+          bg: "#FFFFFF",
+          fg: "#2D50F4",
+        });
+      } else {
+        const referenceBlue = SLIDE10_PALETTES_DEF.find(
+          (palette) => palette.name === "Azul referencia / blanco",
+        );
+        if (referenceBlue) applyWcagPalette(referenceBlue);
+      }
+    } else if ([10, 11, 12].includes(prev)) {
       const restoredFormat = formatBeforeSlide10 || "ig";
       switchFormat(restoredFormat);
       formatBeforeSlide10 = null;
@@ -4971,7 +5029,7 @@ function bindControls() {
 
     // Gestionar la instancia de animación de capa superior (Slide 4/5/7)
     if (
-      [4, 5, 7, 8, 9, 10].includes(state.posterSlide) ||
+      [4, 5, 7, 8, 9, 10, 12].includes(state.posterSlide) ||
       isSlide3Slide9BgActive()
     ) {
       if (!slide4Animation || prevMode !== curMode || prev !== state.posterSlide)
@@ -5290,7 +5348,7 @@ function bindControls() {
     } else if (state.posterSlide === 11) {
       state.anim.slide11Anim = e.target.value;
       if (pixelRow) pixelRow.style.display = "none";
-    } else if (state.posterSlide === 9 || isSlide3Slide9BgActive()) {
+    } else if (isSlide9Like() || isSlide3Slide9BgActive()) {
       state.anim.slide9Anim = e.target.value;
       initSlide4Animation();
       if (pixelRow)
@@ -5683,10 +5741,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   } else if (state.posterSlide === 11) {
     state.format = "slide11";
     setCanvasSize(SLIDE11_W, SLIDE11_H);
+  } else if (state.posterSlide === 12) {
+    state.format = "slide12";
+    setCanvasSize(SLIDE12_W, SLIDE12_H);
   } else if (state.format === "a5") {
     setCanvasSize(A5_W, A5_H);
   } else if (state.format === "slide11") {
     setCanvasSize(SLIDE11_W, SLIDE11_H);
+  } else if (state.format === "slide12") {
+    setCanvasSize(SLIDE12_W, SLIDE12_H);
   } else if (state.format === "banner") {
     setCanvasSize(BANNER_W, BANNER_H);
   }
